@@ -40,6 +40,7 @@ namespace dd4hep {
      *  \ingroup DD4HEP_SIMULATION
      */
     class Geant4HitHandler {
+    protected:
     public:
       const G4Track* track;
       const G4VTouchable* touchable_ptr;
@@ -131,4 +132,4 @@ namespace dd4hep {
   }    // End namespace sim
 }      // End namespace dd4hep
 
-#endif // DDG4_GEANT4GFLASHSPOTHANDLER_H
+#endif // DDG4_GEANT4HITHANDLER_H

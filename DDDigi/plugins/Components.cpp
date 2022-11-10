@@ -12,52 +12,72 @@
 //==========================================================================
 
 // Framework include files
-#include "DD4hep/Printout.h"
-#include "DD4hep/Factories.h"
-#include "DDDigi/DigiFactories.h"
+#include <DD4hep/Printout.h>
+#include <DD4hep/Factories.h>
+#include <DDDigi/DigiFactories.h>
 
 // C/C++ include files
 #include <cerrno>
 #include <cstdlib>
 #include <sstream>
 
-#include "DDDigi/DigiInputAction.h"
-DECLARE_DIGIEVENTACTION_NS(dd4hep::digi,DigiInputAction)
+#include <DDDigi/DigiInputAction.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiInputAction)
 
-#include "DDDigi/DigiDDG4Input.h"
-DECLARE_DIGIEVENTACTION_NS(dd4hep::digi,DigiDDG4Input)
+#include <DDDigi/DigiROOTInput.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiROOTInput)
 
-#include "DDDigi/DigiSynchronize.h"
-DECLARE_DIGIEVENTACTION_NS(dd4hep::digi,DigiSynchronize)
+#include <DDDigi/DigiOutputAction.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiOutputAction)
 
-#include "DDDigi/DigiActionSequence.h"
-DECLARE_DIGIEVENTACTION_NS(dd4hep::digi,DigiActionSequence)
+#include <DDDigi/DigiROOTOutput.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiROOTOutput)
 
-#include "DDDigi/DigiSubdetectorSequence.h"
-DECLARE_DIGIEVENTACTION_NS(dd4hep::digi,DigiSubdetectorSequence)
+#include <DDDigi/DigiSynchronize.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiSynchronize)
 
-#include "DDDigi/DigiLockedAction.h"
-DECLARE_DIGIEVENTACTION_NS(dd4hep::digi,DigiLockedAction)
+#include <DDDigi/DigiActionSequence.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiActionSequence)
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiParallelActionSequence)
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiSequentialActionSequence)
 
-#include "DDDigi/DigiSignalProcessorSequence.h"
-DECLARE_DIGISIGNALPROCESSOR_NS(dd4hep::digi,DigiSignalProcessorSequence)
+//#include <DDDigi/DigiSubdetectorSequence.h>
+// DECLARE_DIGIEVENTACTION_NS(dd4hep::digi,DigiSubdetectorSequence)
 
+#include <DDDigi/DigiLockedAction.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiLockedAction)
 
-using namespace std;
-using namespace dd4hep;
-using namespace dd4hep::detail;
+//#include <DDDigi/DigiSignalProcessorSequence.h>
+// DECLARE_DIGISIGNALPROCESSOR_NS(dd4hep::digi,DigiSignalProcessorSequence)
 
+#include <DDDigi/DigiStoreDump.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiStoreDump)
 
+#include <DDDigi/DigiAttenuator.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiAttenuator)
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiAttenuatorSequence)
+
+#include <DDDigi/DigiContainerCombine.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiContainerCombine)
+
+#include <DDDigi/DigiContainerDrop.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiContainerDrop)
+
+#include <DDDigi/DigiSegmentProcessor.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiSegmentProcessor)
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiSegmentSequence)
+
+#include <DDDigi/DigiSegmentSplitter.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiSegmentSplitter)
+
+#include <DDDigi/DigiContainerProcessor.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiMultiContainerProcessor)
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiContainerSequence)
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiContainerProcessor)
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiContainerSequenceAction)
 
 /// Basic entry point 
-/**
- *  Factory: DD4hep_GeometryDisplay
- *
- *  \author  M.Frank
- *  \version 1.0
- *  \date    01/04/2014
- */
-static long dummy(Detector&, int, char**) {
+static long dummy(dd4hep::Detector&, int, char**) {
   return 0;
 }
 DECLARE_APPLY(DDDigi_dummy,dummy)

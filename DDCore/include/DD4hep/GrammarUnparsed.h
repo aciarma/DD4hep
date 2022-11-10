@@ -18,11 +18,11 @@
 // sufficient for all practical purposes.
 //
 //==========================================================================
-#ifndef DD4HEP_DDCORE_GRAMMARUNPARSED_H
-#define DD4HEP_DDCORE_GRAMMARUNPARSED_H
+#ifndef DD4HEP_GRAMMARUNPARSED_H
+#define DD4HEP_GRAMMARUNPARSED_H
 
-#if defined(DD4HEP_DDCORE_GRAMMARPARSED_H)
-#pragma error "The header files GrammarParsed.h and GrammarUnparsed.h may not be included in the same compilation unit!"
+#if defined(DD4HEP_GRAMMARPARSED_H)
+#error "The header files GrammarParsed.h and GrammarUnparsed.h may not be included in the same compilation unit!"
 #endif
 
 // Framework include files
@@ -37,4 +37,4 @@ namespace dd4hep {
     return s_gr;
   }
 }
-#endif // DD4HEP_DDCORE_GRAMMARUNPARSED_H
+#endif // DD4HEP_GRAMMARUNPARSED_H

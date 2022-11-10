@@ -14,8 +14,8 @@
 #define DDDIGI_DIGIHANDLE_H
 
 // Framework include files
-#include "DD4hep/ComponentProperties.h"
-#include "DD4hep/Detector.h"
+#include <DD4hep/ComponentProperties.h>
+#include <DD4hep/Detector.h>
 
 // C/C++ include files
 #include <string>
@@ -37,7 +37,37 @@ namespace dd4hep {
     /**
      *  \author  M.Frank
      *  \version 1.0
-     *  \ingroup DD4HEP_SIMULATION
+     *  \ingroup DD4HEP_DIGITIZATION
+     */
+    class KernelHandle {
+    public:
+      /// Pointer to referenced object
+      mutable DigiKernel* value;
+      /// Default constructor
+      explicit KernelHandle();
+      /// Construction initialized with object pointer
+      explicit KernelHandle(DigiKernel* k);
+      /// Copy constructor
+      KernelHandle(const KernelHandle& k) : value(k.value) {}
+      /// Default destructor
+      ~KernelHandle()                  {               }
+      /// Conversion operator
+      operator DigiKernel*() const   { return value; }
+      /// Access to the underlying object
+      DigiKernel* get() const        { return value; }
+      /// Access to the underlying object
+      DigiKernel* operator->() const { return value; }
+      /// Access to worker thread
+      KernelHandle worker();
+      /// Destroy referenced object (program termination)
+      void destroy();
+    };
+
+    /// Handle to Digi actions with built-in creation mechanism
+    /**
+     *  \author  M.Frank
+     *  \version 1.0
+     *  \ingroup DD4HEP_DIGITIZATION
      */
     template <typename TYPE> class DigiHandle {
     protected:
@@ -84,36 +114,6 @@ namespace dd4hep {
       TYPE* get() const;
       /// Release the underlying object
       TYPE* release();
-    };
-
-    /// Handle to Digi actions with built-in creation mechanism
-    /**
-     *  \author  M.Frank
-     *  \version 1.0
-     *  \ingroup DD4HEP_SIMULATION
-     */
-    class KernelHandle {
-    public:
-      /// Pointer to referenced object
-      mutable DigiKernel* value;
-      /// Default constructor
-      explicit KernelHandle();
-      /// Construction initialized with object pointer
-      explicit KernelHandle(DigiKernel* k);
-      /// Copy constructor
-      KernelHandle(const KernelHandle& k) : value(k.value) {}
-      /// Default destructor
-      ~KernelHandle()                  {               }
-      /// Conversion operator
-      operator DigiKernel*() const   { return value; }
-      /// Access to the underlying object
-      DigiKernel* get() const        { return value; }
-      /// Access to the underlying object
-      DigiKernel* operator->() const { return value; }
-      /// Access to worker thread
-      KernelHandle worker();
-      /// Destroy referenced object (program termination)
-      void destroy();
     };
 
   }    // End namespace digi

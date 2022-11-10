@@ -14,9 +14,9 @@
 #define DDDIGI_DIGIFACTORIES_H
 
 // Framework include files
-#include "DD4hep/Plugins.h"
-#include "DD4hep/Detector.h"
-#include "DD4hep/Primitives.h"
+#include <DD4hep/Plugins.h>
+#include <DD4hep/Detector.h>
+#include <DD4hep/Primitives.h>
 
 // C/C++ include files
 #include <string>
@@ -33,9 +33,13 @@ namespace dd4hep {
   /// Namespace for the Digitization part of the AIDA detector description toolkit
   namespace digi {
     class DigiKernel;
+    class DigiAction;
+    class DigiInputAction;
     class DigiEventAction;
     class DigiCellScanner;
     class DigiSignalProcessor;
+    class DigiSegmentProcessor;
+    class DigiContainerProcessor;
   }
 }
 
@@ -43,8 +47,17 @@ namespace {
   namespace DS = dd4hep::digi;
 
   /// Factory to create Digi action objects
+  DD4HEP_PLUGIN_FACTORY_ARGS_2(DS::DigiAction*,const DS::DigiKernel*, std::string)
+  {    return new P(*a0,a1);  }
+#if 0
+  /// Factory to create Digi action objects
   DD4HEP_PLUGIN_FACTORY_ARGS_2(DS::DigiEventAction*,const DS::DigiKernel*, std::string)
   {    return new P(*a0,a1);  }
+  /// Factory to create Digi action objects
+  DD4HEP_PLUGIN_FACTORY_ARGS_2(DS::DigiSegmentProcessor*,const DS::DigiKernel*, std::string)
+  {    return new P(*a0,a1);  }
+#endif
+
   /// Factory to create Digi signal processor objects
   DD4HEP_PLUGIN_FACTORY_ARGS_2(DS::DigiSignalProcessor*,const DS::DigiKernel*, std::string)
   {    return new P(*a0,a1);  }
@@ -54,18 +67,37 @@ namespace {
 }
 
 /// Plugin defintion to create DigiAction objects
+#define DECLARE_DIGIACTION_NS(name_space,name)  namespace {\
+  using name_space::name;                                               \
+  DD4HEP_PLUGINSVC_FACTORY(name,name,dd4hep::digi::DigiAction*(const DS::DigiKernel*,std::string),__LINE__) }
+/// Plugin defintion to create DigiAction objects
+#define DECLARE_DIGIACTION(name)   DECLARE_DIGIACTION_NS(dd4hep::digi,name)
+
+
+#if 0
+/// Plugin defintion to create DigiAction objects
 #define DECLARE_DIGIEVENTACTION_NS(name_space,name)  namespace {\
   using name_space::name;                                               \
   DD4HEP_PLUGINSVC_FACTORY(name,name,dd4hep::digi::DigiEventAction*(const DS::DigiKernel*,std::string),__LINE__) }
 /// Plugin defintion to create DigiAction objects
-#define DECLARE_DIGIEVENTACTION(name)         DECLARE_DIGIEVENTACTION_NS(dd4hep::digi,name)
+#define DECLARE_DIGIEVENTACTION(name)     DECLARE_DIGIEVENTACTION_NS(dd4hep::digi,name)
+
+/// Plugin defintion to create DigiAction objects
+#define DECLARE_DIGISEGMENTPROCESSOR_NS(name_space,name)  namespace {\
+  using name_space::name;                                               \
+  DD4HEP_PLUGINSVC_FACTORY(name,name,dd4hep::digi::DigiSegmentProcessor*(const DS::DigiKernel*,std::string),__LINE__) }
+/// Plugin defintion to create DigiAction objects
+#define DECLARE_DIGISEGMENTPROCESSOR(name)   DECLARE_DIGISEGMENTPROCESSOR_NS(dd4hep::digi,name)
+#endif
+
+
 
 #define DECLARE_DIGISIGNALPROCESSOR_NS(name_space,name)  namespace {     \
   using name_space::name;                                               \
   DD4HEP_PLUGINSVC_FACTORY(name,name,dd4hep::digi::DigiSignalProcessor*(const DS::DigiKernel*,std::string),__LINE__) }
 
 /// Plugin defintion to create DigiSignalProcessor objects
-#define DECLARE_DIGISIGNALPROCESSOR(name)         DECLARE_DIGISIGNALPROCESSOR_NS(dd4hep::digi,name)
+#define DECLARE_DIGISIGNALPROCESSOR(name) DECLARE_DIGISIGNALPROCESSOR_NS(dd4hep::digi,name)
 
 #define DECLARE_DIGICELLSCANNER_NS(name_space,typ,seg,sol)  namespace { \
 typedef name_space :: CellScanner<dd4hep:: seg , dd4hep:: sol > Scanner_##typ##_##seg##_##sol##_t; \

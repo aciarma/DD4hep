@@ -27,6 +27,7 @@ project( DD4hep_Examples )
 
 include(CTest)
 option(BUILD_TESTING "Enable and build tests" ON)
+option(DD4HEP_SET_RPATH "Link libraries with built-in RPATH (run-time search path)" ON)
 
 SET( ENV{DD4hepExamplesINSTALL} ${CMAKE_INSTALL_PREFIX} )
 
@@ -41,7 +42,7 @@ dd4hep_configure_output()
 
 #==========================================================================
 
-SET(DD4HEP_EXAMPLES "AlignDet CLICSiD ClientTests Conditions DDCMS DDCodex DDDigi DDG4 DDG4_MySensDet LHeD OpticalSurfaces Persistency DDCAD SimpleDetector"
+SET(DD4HEP_EXAMPLES "AlignDet CLICSiD ClientTests Conditions DDCMS DDCodex DDDigi DDG4 DDG4_MySensDet LHeD OpticalSurfaces OpticalTracker Persistency DDCAD SimpleDetector"
   CACHE STRING "List of DD4hep Examples to build")
 SEPARATE_ARGUMENTS(DD4HEP_EXAMPLES)
 

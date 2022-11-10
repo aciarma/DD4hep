@@ -293,34 +293,12 @@ def _get(self, name):
   raise KeyError(msg)
 
 
-def _deUnicode(value):
-  """Turn any unicode literal into str, needed when passing to c++.
-
-  Recursively transverses dicts, lists, sets, tuples
-
-  :return: always a str
-  """
-  if isinstance(value, (bool, float, six.integer_types)):
-    value = value
-  elif isinstance(value, six.string_types):
-    value = str(value)
-  elif isinstance(value, (list, set, tuple)):
-    value = [_deUnicode(x) for x in value]
-  elif isinstance(value, dict):
-    tempDict = {}
-    for key, val in value.items():
-      key = _deUnicode(key)
-      val = _deUnicode(val)
-      tempDict[key] = val
-    value = tempDict
-  return str(value)
-
-
 def _set(self, name, value):
   """This function is called when properties are passed to the c++ objects."""
+  from dd4hep_base import unicode_2_string
   a = Interface.toAction(self)
-  name = _deUnicode(name)
-  value = _deUnicode(value)
+  name = unicode_2_string(name)
+  value = unicode_2_string(value)
   if Interface.setProperty(a, name, value):
     return
   msg = 'Geant4Action::SetProperty [Unhandled]: Cannot set ' + a.name() + '.' + name + ' = ' + value
@@ -763,7 +741,7 @@ class Geant4:
     gun = GeneratorAction(self.kernel(), typ + "/" + name, True)
     for i in args.items():
       setattr(gun, i[0], i[1])
-    gun.energy = energy
+    gun.Energy = energy
     gun.particle = particle
     gun.multiplicity = multiplicity
     gun.position = position

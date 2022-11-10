@@ -14,14 +14,16 @@
 #define DDDIGI_DIGIEVENTACTION_H
 
 // Framework include files
-#include "DDDigi/DigiAction.h"
-
+#include <DDDigi/DigiAction.h>
 
 /// Namespace for the AIDA detector description toolkit
 namespace dd4hep {
 
   /// Namespace for the Digitization part of the AIDA detector description toolkit
   namespace digi {
+
+    /// Forward declarations
+    class DigiEvent;
 
     /// Default base class for all Digitizer actions and derivates thereof.
     /**
@@ -30,7 +32,7 @@ namespace dd4hep {
      *
      *  \author  M.Frank
      *  \version 1.0
-     *  \ingroup DD4HEP_SIMULATION
+     *  \ingroup DD4HEP_DIGITIZATION
      */
     class DigiEventAction : public DigiAction   {
       friend class DigiKernel;

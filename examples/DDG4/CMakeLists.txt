@@ -45,6 +45,7 @@ if (DD4HEP_USE_GEANT4)
   #
   #
   dd4hep_install_dir(data    DESTINATION ${CMAKE_INSTALL_PREFIX}/examples/DDG4 )
+  dd4hep_install_dir(compact DESTINATION ${CMAKE_INSTALL_PREFIX}/examples/DDG4 )
   dd4hep_install_dir(scripts DESTINATION ${CMAKE_INSTALL_PREFIX}/examples/DDG4 )
   #
   dd4hep_configure_scripts (DDG4 DEFAULT_SETUP WITH_TESTS)
@@ -68,6 +69,30 @@ if (DD4HEP_USE_GEANT4)
     COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_DDG4.sh"
     EXEC_ARGS  ${Python_EXECUTABLE} ${DDG4examples_INSTALL}/scripts/TestProperties.py
     REGEX_PASS "Test PASSED"
+    REGEX_FAIL " ERROR ;EXCEPTION;Exception"
+  )
+  #
+  # Test material and volume properties
+  dd4hep_add_test_reg( DDG4_material_volume_string_properties
+    COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_DDG4.sh"
+    EXEC_ARGS  geoDisplay file:${DDG4examples_INSTALL}/compact/Channeling.xml -load -destroy
+    REGEX_PASS "7 nodes/ 3 volume UID's in Detector Geometry"
+    REGEX_FAIL " ERROR ;EXCEPTION;Exception"
+  )
+  #
+  # Test G4 creation of G4ExtendedMaterial and G4LogicalCrystalVolume
+  dd4hep_add_test_reg( DDG4_G4ExtendedMaterial_G4LogicalCrystalVolume
+    COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_DDG4.sh"
+    EXEC_ARGS  ${Python_EXECUTABLE} ${DDG4examples_INSTALL}/scripts/Channeling.py -batch -events 3
+    REGEX_PASS "Created specialize logical volume \\[G4LogicalCrystalVolume\\]: ChannelingDevice_vol"
+    REGEX_FAIL " ERROR ;EXCEPTION;Exception"
+  )
+  #
+  # Test G4 stacking action
+  dd4hep_add_test_reg( DDG4_TestStackingAction
+    COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_DDG4.sh"
+    EXEC_ARGS  ${Python_EXECUTABLE} ${DDG4examples_INSTALL}/scripts/TestStacking.py -batch -events 3
+    REGEX_PASS " \\[2\\] Calling classifyNewTrack. StackManager"
     REGEX_FAIL " ERROR ;EXCEPTION;Exception"
   )
 endif()

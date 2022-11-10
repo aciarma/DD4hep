@@ -14,7 +14,7 @@
 #define DD4HEP_DDDIGI_DIGIRANDOMNOISE_H
 
 // Framework include files
-#include "DDDigi/DigiEventAction.h"
+#include <DDDigi/DigiEventAction.h>
 
 /// Namespace for the AIDA detector description toolkit
 namespace dd4hep {
@@ -75,17 +75,17 @@ namespace dd4hep {
 //==========================================================================
 
 // Framework include files
-#include "DD4hep/Printout.h"
-#include "DD4hep/InstanceCount.h"
-#include "DDDigi/DigiFactories.h"
-//#include "DDDigi/DigiRandomNoise.h"
+#include <DD4hep/Printout.h>
+#include <DD4hep/InstanceCount.h>
+#include <DDDigi/DigiFactories.h>
+//#include <DDDigi/DigiRandomNoise.h>
 
 // C/C++ include files
 
 using namespace std;
 using namespace dd4hep::digi;
 
-DECLARE_DIGIEVENTACTION_NS(dd4hep::digi,DigiRandomNoise)
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiRandomNoise)
 
 /// Standard constructor
 DigiRandomNoise::DigiRandomNoise(const DigiKernel& kernel, const string& nam)

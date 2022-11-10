@@ -368,12 +368,12 @@ template <> void Converter<Constant>::operator()(xml_h e) const {
  */
 template <> void Converter<Header>::operator()(xml_h e) const {
   xml_comp_t c(e);
-  Header h(e.attr<string>(_U(name)), e.attr<string>(_U(title)));
-  h.setUrl(e.attr<string>(_U(url)));
-  h.setAuthor(e.attr<string>(_U(author)));
-  h.setStatus(e.attr<string>(_U(status)));
-  h.setVersion(e.attr<string>(_U(version)));
-  h.setComment(e.child(_U(comment)).text());
+  Header h(e.attr<string>(_U(name)), e.attr<string>(_U(title), "Undefined"));
+  h.setUrl(e.attr<string>(_U(url), "Undefined"));
+  h.setAuthor(e.attr<string>(_U(author), "Undefined"));
+  h.setStatus(e.attr<string>(_U(status), "development"));
+  h.setVersion(e.attr<string>(_U(version), "Undefined"));
+  h.setComment(e.hasChild(_U(comment)) ? e.child(_U(comment)).text() : "No Comment");
   description.setHeader(h);
 }
 
@@ -517,6 +517,14 @@ template <> void Converter<Material>::operator()(xml_h e) const {
         printout(s_debug.materials ? ALWAYS : DEBUG, "Compact",
                  "++            material %-16s  add constant property: %s  ->  %s.",
                  mat->GetName(), prop_nam.c_str(), ref.c_str());
+      }
+      else if ( p.hasAttr(_U(option)) )   {
+        string prop_nam = p.attr<string>(_U(name));
+	string prop_typ = p.attr<string>(_U(option));
+        mat->AddConstProperty(prop_nam.c_str(), prop_typ.c_str());
+        printout(s_debug.materials ? ALWAYS : DEBUG, "Compact",
+                 "++            material %-16s  add constant property: %s  ->  %s.",
+                 mat->GetName(), prop_nam.c_str(), prop_typ.c_str());
       }
     }
     /// In case there were material properties specified: convert them here
@@ -1089,6 +1097,14 @@ template <> void Converter<Readout>::operator()(xml_h e) const {
   }
   description.addReadout(ro);
 }
+
+static long load_readout(Detector& description, xml_h element) {
+  Converter<Readout> converter(description);
+  converter(element);
+  return 1;
+}
+DECLARE_XML_DOC_READER(readout,load_readout)
+
 
 /** Specialized converter for compact LimitSet objects.
  *

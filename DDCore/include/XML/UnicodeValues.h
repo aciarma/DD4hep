@@ -14,6 +14,8 @@
 //
 //==========================================================================
 
+#ifdef UNICODE
+
 extern const Tag_t Unicode_NULL;
 extern const Tag_t Unicode_empty;
 extern const Tag_t Unicode_star;
@@ -627,4 +629,6 @@ UNICODE (zmax);
 UNICODE (zplane);
 UNICODE (zstart);
 
-#endif
+#endif // ifdef UNICODE
+
+#endif // XML_UNICODEVALUES_H

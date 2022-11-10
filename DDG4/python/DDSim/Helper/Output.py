@@ -2,7 +2,33 @@
 
 from __future__ import absolute_import, unicode_literals
 from DDSim.Helper.ConfigHelper import ConfigHelper
-from DDSim.DD4hepSimulation import outputLevel
+
+
+def outputLevelType(level):
+  """Return verbosity level as integer if possible.
+
+  Still benefit from argparsers list of possible choices
+  """
+  try:
+    return int(level)
+  except ValueError:
+    return str(level)
+
+
+def outputLevel(level):
+  """return INT for outputlevel"""
+  if isinstance(level, int):
+    if level < 1 or 7 < level:
+      raise KeyError
+    return level
+  outputlevels = {"VERBOSE": 1,
+                  "DEBUG": 2,
+                  "INFO": 3,
+                  "WARNING": 4,
+                  "ERROR": 5,
+                  "FATAL": 6,
+                  "ALWAYS": 7}
+  return outputlevels[level.upper()]
 
 
 class Output(ConfigHelper):
@@ -11,19 +37,27 @@ class Output(ConfigHelper):
   def __init__(self):
     super(Output, self).__init__()
     self._kernel_EXTRA = {'choices': (1, 2, 3, 4, 5, 6, 7, 'VERBOSE', 'DEBUG',
-                                      'INFO', 'WARNING', 'ERROR', 'FATAL', 'ALWAYS')}
+                                      'INFO', 'WARNING', 'ERROR', 'FATAL', 'ALWAYS'),
+                          'type': outputLevelType,
+                          }
     self._kernel = outputLevel('INFO')
 
     self._part_EXTRA = {'choices': (1, 2, 3, 4, 5, 6, 7, 'VERBOSE', 'DEBUG',
-                                    'INFO', 'WARNING', 'ERROR', 'FATAL', 'ALWAYS')}
+                                    'INFO', 'WARNING', 'ERROR', 'FATAL', 'ALWAYS'),
+                        'type': outputLevelType,
+                        }
     self._part = outputLevel('INFO')
 
     self._inputStage_EXTRA = {'choices': (1, 2, 3, 4, 5, 6, 7, 'VERBOSE', 'DEBUG',
-                                          'INFO', 'WARNING', 'ERROR', 'FATAL', 'ALWAYS')}
+                                          'INFO', 'WARNING', 'ERROR', 'FATAL', 'ALWAYS'),
+                              'type': outputLevelType,
+                              }
     self._inputStage = outputLevel('INFO')
 
     self._random_EXTRA = {'choices': (1, 2, 3, 4, 5, 6, 7, 'VERBOSE', 'DEBUG',
-                                      'INFO', 'WARNING', 'ERROR', 'FATAL', 'ALWAYS')}
+                                      'INFO', 'WARNING', 'ERROR', 'FATAL', 'ALWAYS'),
+                          'type': outputLevelType,
+                          }
     self._random = outputLevel('FATAL')
 
   @property

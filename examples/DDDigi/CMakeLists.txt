@@ -17,6 +17,11 @@ IF(NOT TARGET DD4hep::DDCore)
   dd4hep_configure_output()
 ENDIF()
 
+IF(NOT TARGET DD4hep::DDDigi)
+  MESSAGE(STATUS "+++> DDDigi examples shall not be built! [DDDigi not enabled]")
+  return()
+ENDIF()
+
 dd4hep_set_compiler_flags()
 dd4hep_use_python_executable()
 #==========================================================================
@@ -47,4 +52,3 @@ dd4hep_add_test_reg(DDDigi_colored_noise
   REGEX_FAIL "Error;ERROR;Exception"
   )
 #
-

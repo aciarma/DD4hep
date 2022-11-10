@@ -7,9 +7,10 @@ Based on M. Frank and F. Gaede runSim.py
 
 """
 from __future__ import absolute_import, unicode_literals, division, print_function
-__RCSID__ = "$Id$"
-import sys
+
 import os
+import sys
+import traceback
 from DDSim.Helper.Meta import Meta
 from DDSim.Helper.LCIO import LCIO
 from DDSim.Helper.HepMC3 import HepMC3
@@ -18,7 +19,9 @@ from DDSim.Helper.Physics import Physics
 from DDSim.Helper.Filter import Filter
 from DDSim.Helper.Random import Random
 from DDSim.Helper.Action import Action
+from DDSim.Helper.Output import Output, outputLevel, outputLevelType
 from DDSim.Helper.OutputConfig import OutputConfig
+from DDSim.Helper.InputConfig import InputConfig
 from DDSim.Helper.ConfigHelper import ConfigHelper
 from DDSim.Helper.MagneticField import MagneticField
 from DDSim.Helper.ParticleHandler import ParticleHandler
@@ -37,25 +40,6 @@ except ImportError:
   ARGCOMPLETEENABLED = False
 
 POSSIBLEINPUTFILES = (".stdhep", ".slcio", ".HEPEvt", ".hepevt", ".hepmc", ".pairs")
-
-
-def outputLevel(level):
-  """return INT for outputlevel"""
-  if isinstance(level, int):
-    if level < 1 or 7 < level:
-      raise KeyError
-    return level
-  outputlevels = {"VERBOSE": 1,
-                  "DEBUG": 2,
-                  "INFO": 3,
-                  "WARNING": 4,
-                  "ERROR": 5,
-                  "FATAL": 6,
-                  "ALWAYS": 7}
-  return outputlevels[level.upper()]
-
-
-from DDSim.Helper.Output import Output  # noqa
 
 
 class DD4hepSimulation(object):
@@ -95,6 +79,7 @@ class DD4hepSimulation(object):
     self.field = MagneticField()
     self.action = Action()
     self.outputConfig = OutputConfig()
+    self.inputConfig = InputConfig()
     self.guineapig = GuineaPig()
     self.lcio = LCIO()
     self.hepmc3 = HepMC3()
@@ -104,9 +89,6 @@ class DD4hepSimulation(object):
     self.physics = Physics()
 
     self._argv = None
-
-    # use TCSH geant UI instead of QT
-    os.environ['G4UI_USE_TCSH'] = "1"
 
   def readSteeringFile(self):
     """Reads a steering file and sets the parameters to that of the
@@ -149,10 +131,12 @@ class DD4hepSimulation(object):
                         default=ConfigHelper.makeList(self.compactFile), type=str,
                         help="The compact XML file, or multiple compact files, if the last one is the closer.")
 
-    parser.add_argument("--runType", action="store", choices=("batch", "vis", "run", "shell"), default=self.runType,
+    parser.add_argument("--runType", action="store", choices=("batch", "vis", "run", "shell", "qt"),
+                        default=self.runType,
                         help="The type of action to do in this invocation"  # Note: implicit string concatenation
                         "\nbatch: just simulate some events, needs numberOfEvents, and input file or gun"
                         "\nvis: enable visualisation, run the macroFile if it is set"
+                        "\nqt: enable visualisation in Qt shell, run the macroFile if it is set"
                         "\nrun: run the macroFile and exit"
                         "\nshell: enable interactive session")
 
@@ -166,6 +150,7 @@ class DD4hepSimulation(object):
     parser.add_argument("-v", "--printLevel", action="store", default=self.printLevel, dest="printLevel",
                         choices=(1, 2, 3, 4, 5, 6, 7, 'VERBOSE', 'DEBUG',
                                  'INFO', 'WARNING', 'ERROR', 'FATAL', 'ALWAYS'),
+                        type=outputLevelType,
                         help="Verbosity use integers from 1(most) to 7(least) verbose"
                         "\nor strings: VERBOSE, DEBUG, INFO, WARNING, ERROR, FATAL, ALWAYS")
 
@@ -248,6 +233,9 @@ class DD4hepSimulation(object):
 
     self._consistencyChecks()
 
+    if self.printLevel <= 2:  # VERBOSE or DEBUG
+      logger.setLevel(logging.DEBUG)
+
     # self.__treatUnknownArgs( parsed, unknown )
     self.__parseAllHelper(parsed)
     if self._errorMessages and not (self._dumpParameter or self._dumpSteeringFile):
@@ -317,18 +305,19 @@ class DD4hepSimulation(object):
     simple.printDetectors()
 
     if self.runType == "vis":
-      simple.setupUI(typ="csh", vis=True, macro=self.macroFile)
+      simple.setupUI(typ="tcsh", vis=True, macro=self.macroFile)
+    elif self.runType == "qt":
+      simple.setupUI(typ="qt", vis=True, macro=self.macroFile)
     elif self.runType == "run":
-      simple.setupUI(typ="csh", vis=False, macro=self.macroFile, ui=False)
+      simple.setupUI(typ="tcsh", vis=False, macro=self.macroFile, ui=False)
     elif self.runType == "shell":
-      simple.setupUI(typ="csh", vis=False, macro=None, ui=True)
+      simple.setupUI(typ="tcsh", vis=False, macro=None, ui=True)
     elif self.runType == "batch":
-      simple.setupUI(typ="csh", vis=False, macro=None, ui=False)
+      simple.setupUI(typ="tcsh", vis=False, macro=None, ui=False)
     else:
       logger.error("unknown runType")
       exit(1)
 
-    # kernel.UI="csh"
     kernel.NumEvents = self.numberOfEvents
 
     # -----------------------------------------------------------------------------------
@@ -391,7 +380,16 @@ class DD4hepSimulation(object):
       logger.info("++++ Adding Geant4 General Particle Source ++++")
       actionList.append(self._g4gps)
 
-    for index, inputFile in enumerate(self.inputFiles, start=4):
+    start = 4
+    for index, plugin in enumerate(self.inputConfig.userInputPlugin, start=start):
+      gen = plugin(self)
+      gen.Mask = index
+      start = index + 1
+      actionList.append(gen)
+      self.__applyBoostOrSmear(kernel, actionList, index)
+      logger.info("++++ Adding User Plugin %s ++++", gen.Name)
+
+    for index, inputFile in enumerate(self.inputFiles, start=start):
       if inputFile.endswith(".slcio"):
         gen = DDG4.GeneratorAction(kernel, "LCIOInputAction/LCIO%d" % index)
         gen.Parameters = self.lcio.getParameters()
@@ -559,20 +557,16 @@ class DD4hepSimulation(object):
               obj.setOption(var, parsedDict[key])
             except RuntimeError as e:
               self._errorMessages.append("ERROR: %s " % e)
+              if logger.level <= logging.DEBUG:
+                self._errorMessages.append(traceback.format_exc())
 
   def __checkOutputLevel(self, level):
     """return outputlevel as int so we don't have to import anything for faster startup"""
     try:
-      level = int(level)
-      if level < 1 or 7 < level:
-        raise KeyError
-      return level
+      return outputLevel(level)
     except ValueError:
-      try:
-        return outputLevel(level.upper())
-      except ValueError:
-        self._errorMessages.append("ERROR: printLevel is neither integer nor string")
-        return -1
+      self._errorMessages.append("ERROR: printLevel is neither integer nor string")
+      return -1
     except KeyError:
       self._errorMessages.append("ERROR: printLevel '%s' unknown" % level)
       return -1

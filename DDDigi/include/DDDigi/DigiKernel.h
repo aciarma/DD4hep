@@ -14,11 +14,13 @@
 #define DDDIGI_DIGIKERNEL_H
 
 // Framework include files
-#include "DDDigi/DigiEventAction.h"
+#include <DD4hep/Callback.h>
+#include <DDDigi/DigiEventAction.h>
+#include <DDDigi/DigiParallelWorker.h>
 
 // C/C++ include files
 #include <mutex>
-#include <atomic>
+#include <memory>
 
 /// Namespace for the AIDA detector description toolkit
 namespace dd4hep {
@@ -27,6 +29,7 @@ namespace dd4hep {
   namespace digi {
 
     /// Forward declarations
+    class DigiAction;
     class DigiActionSequence;
     
     /// Class, which allows all DigiAction derivatives to access the DDG4 kernel structures.
@@ -45,23 +48,23 @@ namespace dd4hep {
     private:
       class Internals;
       class Processor;
-      class Wrapper;
+      template <typename ACTION, typename ARGUMENT> class Wrapper;
 
       /// Internal only data structures;
-      Internals*            internals = 0;
+      Internals*            internals   { nullptr };
       
     protected:
       /// Detector description object
-      Detector*             m_detDesc = 0;
+      Detector*             m_detDesc         { nullptr };
       /// Reference to the user framework
       mutable UserFramework m_userFramework;
       
       /// Execute one single event
-      virtual void executeEvent(DigiContext* context);
+      virtual void executeEvent(std::unique_ptr<DigiContext>&& context);
       /// Notify kernel that the execution of one single event finished
-      void notify(DigiContext* context);
+      void notify(std::unique_ptr<DigiContext>&& context);
       /// Notify kernel that the execution of one single event finished
-      void notify(DigiContext* context, const std::exception& e);
+      void notify(std::unique_ptr<DigiContext>&&, const std::exception& e);
       
     protected:
       /// Define standard assignments and constructors
@@ -87,6 +90,15 @@ namespace dd4hep {
       template <typename T> void setUserFramework(T* object)   {
         m_userFramework = UserFramework(object,&typeid(T));
       }
+
+      /// Have a shared initializer lock
+      std::mutex& initializer_lock()  const;
+
+      /// Have a global I/O lock (e.g. for ROOT)
+      std::mutex& global_io_lock()   const;
+
+      /// Have a global output log lock
+      std::mutex& global_output_lock()   const;
       
       /** Property access                            */
       /// Access to the properties of the object
@@ -112,18 +124,36 @@ namespace dd4hep {
       /// Retrieve the global output level of a named object.
       PrintLevel getOutputLevel(const std::string object) const;
 
+      /// Access current number of events still to process
+      std::size_t events_todo()  const;
+      /// Access current number of events already processed
+      std::size_t events_done()  const;
+      /// Access current number of events processing (events in flight)
+      std::size_t events_processing()  const;
+
+      /// Register configure callback. Signature:   (function)()
+      void register_configure(const Callback& callback)   const;
+      /// Register initialize callback. Signature:  (function)()
+      void register_initialize(const Callback& callback)   const;
+      /// Register terminate callback. Signature:   (function)()
+      void register_terminate(const Callback& callback)   const;
+      /// Register start event callback. Signature: (function)(DigiContext*)
+      void register_start_event(const Callback& callback)   const;
+      /// Register end event callback. Signature:   (function)(DigiContext*)
+      void register_end_event(const Callback& callback)   const;
+
       /// Construct detector geometry using description plugin
       virtual void loadGeometry(const std::string& compact_file);
       /// Load XML file 
       virtual void loadXML(const char* fname);
 
-      /// Run the simulation: Configure Digi
+      /// Configure the digitization: call all registered configurators
       virtual int configure();
-      /// Run the simulation: Initialize Digi
+      /// Initialize the digitization: call all registered initializers
       virtual int initialize();
-      /// Run the simulation: Simulate the number of events given by the property "NumEvents"
+      /// Run the digitization sequence over the requested number of events
       virtual int run();
-      /// Run the simulation: Terminate Digi
+      /// Terminate the digitization: call all registered terminators and release the allocated resources
       virtual int terminate();
 
       /// Access to the main input action sequence from the kernel object
@@ -132,20 +162,26 @@ namespace dd4hep {
       DigiActionSequence& eventAction() const;
       /// Access to the main output action sequence from the kernel object
       DigiActionSequence& outputAction() const;
+
       /// Submit a bunch of actions to be executed in parallel
-      virtual void submit (const DigiAction::Actors<DigiEventAction>& algorithms, DigiContext& context)  const;
-      /// Submit a bunch of actions to be executed serially
-      virtual void execute(const DigiAction::Actors<DigiEventAction>& algorithms, DigiContext& context)  const;
+      virtual void submit (DigiContext& context, ParallelCall*const algorithms[], std::size_t count, void* data, bool parallel=true)  const;
+
+      /// Submit a bunch of actions to be executed in parallel
+      virtual void submit (DigiContext& context, const std::vector<ParallelCall*>& algorithms, void* data, bool parallel=true)  const;
+
+      /// If running multithreaded: wait until the thread-group finished execution
       virtual void wait(DigiContext& context)   const;
+
     };
+
     /// Declare property
-    template <typename T> DigiKernel& DigiKernel::declareProperty(const std::string& nam, T& val) {
+    template <typename T> inline DigiKernel& DigiKernel::declareProperty(const std::string& nam, T& val) {
       properties().add(nam, val);
       return *this;
     }
 
     /// Declare property
-    template <typename T> DigiKernel& DigiKernel::declareProperty(const char* nam, T& val) {
+    template <typename T> inline DigiKernel& DigiKernel::declareProperty(const char* nam, T& val) {
       properties().add(nam, val);
       return *this;
     }

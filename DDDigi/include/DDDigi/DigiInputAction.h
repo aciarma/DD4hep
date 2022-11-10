@@ -14,7 +14,7 @@
 #define DDDIGI_DIGIINPUTACTION_H
 
 /// Framework include files
-#include "DDDigi/DigiEventAction.h"
+#include <DDDigi/DigiEventAction.h>
 
 /// Namespace for the AIDA detector description toolkit
 namespace dd4hep {
@@ -23,7 +23,6 @@ namespace dd4hep {
   namespace digi {
 
     // Forward declarations
-    class DigiAction;
     class DigiInputAction;
 
     /// Base class for input actions to the digitization
@@ -34,9 +33,16 @@ namespace dd4hep {
      *  \ingroup DD4HEP_DIGITIZATION
      */
     class DigiInputAction : public DigiEventAction {
+    public:
+      enum { INPUT_START = -1  };
+      enum { NO_MASK     = 0x0 };
+
     protected:
-      /// Input data specification
-      std::vector<std::string> m_input;
+      /// Property: Input data specification
+      std::vector<std::string> m_inputs { };
+      /// Property: Mask to flag input source items
+      int                      m_mask   { NO_MASK };
+
     protected:
       /// Define standard assignments and constructors
       DDDIGI_DEFINE_ACTION_CONSTRUCTORS(DigiInputAction);
@@ -46,10 +52,10 @@ namespace dd4hep {
       DigiInputAction(const DigiKernel& kernel, const std::string& nam);
       /// Default destructor
       virtual ~DigiInputAction();
+
       /// Callback to read event input
       virtual void execute(DigiContext& context)  const override;
     };
-
   }    // End namespace digi
 }      // End namespace dd4hep
 #endif // DDDIGI_DIGIINPUTACTION_H

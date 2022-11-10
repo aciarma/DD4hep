@@ -14,7 +14,8 @@
 #define DDDIGI_DIGIACTIONSEQUENCE_H
 
 // Framework include files
-#include "DDDigi/DigiSynchronize.h"
+#include <DD4hep/Callback.h>
+#include <DDDigi/DigiSynchronize.h>
 
 /// Namespace for the AIDA detector description toolkit
 namespace dd4hep {
@@ -70,6 +71,36 @@ namespace dd4hep {
       }
       /// Begin-of-event callback
       virtual void execute(DigiContext& context)  const override;
+    };
+
+    /// Definitiaon of the sequential action sequence
+    /** Definitiaon of the sequential action sequence
+     *
+     *  \author  M.Frank
+     *  \version 1.0
+     *  \ingroup DD4HEP_DIGITIZATION
+     */
+    class DigiSequentialActionSequence : public DigiActionSequence {
+    public:
+      /// Standard constructor
+      DigiSequentialActionSequence(const DigiKernel& kernel, const std::string& nam);
+      /// Default destructor
+      virtual ~DigiSequentialActionSequence();
+    };
+
+    /// Definitiaon of the parallel action sequence
+    /** Definitiaon of the parallel action sequence
+     *
+     *  \author  M.Frank
+     *  \version 1.0
+     *  \ingroup DD4HEP_DIGITIZATION
+     */
+    class DigiParallelActionSequence : public DigiActionSequence {
+    public:
+      /// Standard constructor
+      DigiParallelActionSequence(const DigiKernel& kernel, const std::string& nam);
+      /// Default destructor
+      virtual ~DigiParallelActionSequence();
     };
 
   }    // End namespace digi

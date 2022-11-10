@@ -31,13 +31,13 @@
 #pragma clang diagnostic ignored "-Woverlength-strings"
 #endif
 
-#include "DDDigi/DigiData.h"
-#include "DDDigi/DigiHandle.h"
-#include "DDDigi/DigiKernel.h"
-#include "DDDigi/DigiContext.h"
-#include "DDDigi/DigiSynchronize.h"
-#include "DDDigi/DigiActionSequence.h"
-#include "DDDigi/DigiSignalProcessor.h"
+#include <DDDigi/DigiData.h>
+#include <DDDigi/DigiHandle.h>
+#include <DDDigi/DigiKernel.h>
+#include <DDDigi/DigiContext.h>
+#include <DDDigi/DigiAction.h>
+#include <DDDigi/DigiEventAction.h>
+#include <DDDigi/DigiContainerProcessor.h>
 
 struct DDDigiDict  {};
 
@@ -47,78 +47,92 @@ namespace dd4hep {
   /// Namespace for the Digitization part of the AIDA detector description toolkit
   namespace digi {
 
-#define ACTIONHANDLE(x)                                                                   \
-    struct x##Handle  {                                                                   \
-      Digi##x* action;                                                                    \
-      explicit x##Handle(Digi##x* a) : action(a)       { if ( action ) action->addRef();} \
-      x##Handle(const x##Handle& h) : action(h.action) { if ( action ) action->addRef();} \
-      ~x##Handle()                                     { if ( action) action->release();} \
-      Digi##x* release()          { Digi##x* tmp = action; action=0; return tmp;        } \
-      operator dd4hep::digi::Digi##x* () const         { return action;                 } \
-      Digi##x* operator->() const                      { return action;                 } \
-      Digi##x* get() const                             { return action;                 } \
-    }
+    template <typename VAL>
+    int add_action_property(DigiAction* action, const std::string& name, VAL value);
 
-    ACTIONHANDLE(SignalProcessor);
-    ACTIONHANDLE(Action);
-    ACTIONHANDLE(EventAction);
-    ACTIONHANDLE(ActionSequence);
-    ACTIONHANDLE(Synchronize);
-
-    struct PropertyResult  {
-      std::string data;
-      int status;
-      PropertyResult() : status(0) {}
-      PropertyResult(const std::string& d, int s) : data(d), status(s) {}
-      PropertyResult(const PropertyResult& c) : data(c.data), status(c.status) {}
-      ~PropertyResult() {}
+    struct ActionHandle  {
+      DigiAction* action;
+      explicit ActionHandle(DigiAction* a) : action(a)  {
+	if (action) action->addRef();
+      }
+      ActionHandle(const ActionHandle& h) : action(h.action) {
+	if (action) action->addRef();
+      }
+      ~ActionHandle()   {
+	if (action) action->release();
+      }
+      ActionHandle& operator=(const ActionHandle& h) { 
+	if ( h.action ) h.action->addRef();
+	if ( action ) action->release();
+	action = h.action;
+	return *this;
+      }
+      DigiAction* release()  {
+	DigiAction* tmp = action;
+	action=0;
+	return tmp;
+      }
+      operator dd4hep::digi::DigiAction* () const         { return action; }
+      DigiAction* operator->() const                      { return action; }
+      DigiAction* get() const                             { return action; }
+      DigiAction* I_am_a_ROOT_interface_handle() const    { return action; }
+      KernelHandle kernel()  const  {
+	auto* k = const_cast<DigiKernel*>(action->kernel());
+	return KernelHandle(k);
+      }
     };
 
+    struct PropertyResult  {
+    public:
+      std::string data  {};
+      int status  { 0 };
+      PropertyResult() = default;
+      PropertyResult(const std::string& d, int s);
+      PropertyResult(const PropertyResult& c) = default;
+      ~PropertyResult() = default;
+    };
+    
+    inline PropertyResult::PropertyResult(const std::string& d, int s)
+      : data(d), status(s)
+    {
+    }
+
     struct DigiActionCreation  {
-      template <typename H,typename T> static
-      H cr(KernelHandle& kernel, const std::string& name_type)  {
-        T action(*kernel.get(),name_type);
-        H handle(action.get());
-        return handle;
+      template <typename H> static H* cst(DigiAction* in)  {
+	auto* out = dynamic_cast<H*>(in);
+	if ( out ) return out;
+	if ( in )
+	  except("DigiAction","Invalid cast of action '%s' [type:%s] to type %s!",
+		 in->c_name(), typeName(typeid(DigiAction)).c_str(), typeName(typeid(H)).c_str());
+	except("DigiAction","Invalid cast of NULL [type:%s] to type %s!",
+	       typeName(typeid(DigiAction)).c_str(), typeName(typeid(H)).c_str());
+	return nullptr;
       }
-      static ActionHandle createAction(KernelHandle& kernel, const std::string& name_type)   
-      { return cr<ActionHandle,DigiHandle<DigiAction> >(kernel,name_type);                           }
-      static EventActionHandle createEventAction(KernelHandle& kernel, const std::string& name_type)   
-      { return cr<EventActionHandle,DigiHandle<DigiEventAction> >(kernel,name_type);                 }
-      static ActionSequenceHandle createSequence(KernelHandle& kernel, const std::string& name_type)   
-      { return cr<ActionSequenceHandle,DigiHandle<DigiActionSequence> >(kernel,name_type);           }
-      static SynchronizeHandle createSync(KernelHandle& kernel, const std::string& name_type)
-      { return cr<SynchronizeHandle,DigiHandle<DigiSynchronize> >(kernel,name_type);                 }
 
-      static DigiAction* toAction(DigiAction* f)                   { return f;                       }
-      static DigiAction* toAction(DigiActionSequence* f)           { return f;                       }
-      static DigiAction* toAction(DigiSynchronize* f)              { return f;                       }
-      static DigiAction* toAction(DigiSignalProcessor* f)          { return f;                       }
-
-      static DigiAction* toAction(ActionHandle f)                  { return f.action;                }
-      static DigiAction* toAction(ActionSequenceHandle f)          { return f.action;                }
-      static DigiAction* toAction(SynchronizeHandle f)             { return f.action;                }
-      static DigiAction* toAction(SignalProcessorHandle f)         { return f.action;                }
-
-      static PropertyResult getProperty(DigiAction* action, const std::string& name)  {
-        if ( action->hasProperty(name) )  {
-          return PropertyResult(action->property(name).str(),1);
-        }
-        return PropertyResult("",0);
+      static KernelHandle createKernel(DigiAction* action)   {
+	auto* k = const_cast<DigiKernel*>(action->kernel());
+	return KernelHandle(k);
       }
-      static int setProperty(DigiAction* action, const std::string& name, const std::string& value)  {
-        if ( action->hasProperty(name) )  {
-          action->property(name).str(value);
-          return 1;
-        }
-        return 0;
+
+      static ActionHandle createAction(KernelHandle& kernel, const std::string& name_type)   {
+        DigiHandle<DigiAction> action(*kernel.get(),name_type);
+        return ActionHandle(action.get());
       }
+      static DigiAction* toAction(DigiAction* f)    { return f;        }
+      static DigiAction* toAction(ActionHandle f)   { return f.action; }
+
+      static DigiEventAction*        toEventAction(DigiAction* a) { return cst<DigiEventAction>(a); }
+      static DigiContainerProcessor* toContainerProcessor(DigiAction* a) { return cst<DigiContainerProcessor>(a); }
+
+      /// Access kernel property
       static PropertyResult getPropertyKernel(DigiKernel* kernel, const std::string& name)  {
         if ( kernel->hasProperty(name) )  {
           return PropertyResult(kernel->property(name).str(),1);
         }
         return PropertyResult("",0);
       }
+
+      /// Set kernel property
       static int setPropertyKernel(DigiKernel* kernel, const std::string& name, const std::string& value)  {
         if ( kernel->hasProperty(name) )  {
           kernel->property(name).str(value);
@@ -126,9 +140,60 @@ namespace dd4hep {
         }
         return 0;
       }
+
+      /// Access DigiAction property
+      static PropertyResult getProperty(DigiAction* action, const std::string& name)  {
+        if ( action->hasProperty(name) )  {
+          return PropertyResult(action->property(name).str(),1);
+        }
+        return PropertyResult("",0);
+      }
+
+      /// Set DigiAction property
+      static int setProperty(DigiAction* action, const std::string& name, const std::string& value)  {
+        if ( action->hasProperty(name) )  {
+          action->property(name).str(value);
+          return 1;
+        }
+        return 0;
+      }
+
+#define MKVAL auto val = value
+
+#define ADD_PROPERTY(n,X)						\
+      static int add##n       (DigiAction* action, const std::string& name, const X value) \
+      {	return add_action_property(action, name, value); }		\
+      static int addVector##n (DigiAction* action, const std::string& name, std::vector<X> value) \
+      {	MKVAL; return add_action_property(action, name, val); }	\
+      static int addList##n   (DigiAction* action, const std::string& name, std::list<X> value) \
+      {	MKVAL; return add_action_property(action, name, val); }		\
+      static int addSet##n    (DigiAction* action, const std::string& name, std::set<X> value) \
+      {	MKVAL; return add_action_property(action, name, val); }		\
+      static int addMapped##n (DigiAction* action, const std::string& name, std::map<std::string,X> value) \
+      {	MKVAL; return add_action_property(action, name, val); }
+      ADD_PROPERTY(Property,int)
+      ADD_PROPERTY(Property,short)
+      ADD_PROPERTY(Property,size_t)
+      ADD_PROPERTY(Property,double)
+
+      ADD_PROPERTY(Property,std::string)
+
+      static int addPositionProperty(DigiAction* action, const std::string& name, const std::string value)     {
+	Position pos;
+	Property pr(pos);
+	pr.str(value);
+	return add_action_property(action, name, pos);
+      }
     };
   }
 }
+
+#include <DDDigi/DigiSynchronize.h>
+#include <DDDigi/DigiInputAction.h>
+#include <DDDigi/DigiSegmentSplitter.h>
+#include <DDDigi/DigiSegmentProcessor.h>
+#include <DDDigi/DigiActionSequence.h>
+#include <DDDigi/DigiSignalProcessor.h>
 
 // CINT configuration
 #if defined(__CINT__) || defined(__MAKECINT__) || defined(__CLING__) || defined(__ROOTCLING__)
@@ -142,30 +207,35 @@ using namespace std;
 #pragma link C++ namespace dd4hep;
 #pragma link C++ namespace dd4hep::digi;
 
-#pragma link C++ class dd4hep::digi::DigiActionCreation;
-#pragma link C++ class dd4hep::digi::DigiContext;
-
-#pragma link C++ class dd4hep::digi::DigiKernel;
 #pragma link C++ class dd4hep::digi::KernelHandle;
-
-#pragma link C++ class dd4hep::digi::DigiAction;
 #pragma link C++ class dd4hep::digi::ActionHandle;
 
+#pragma link C++ class dd4hep::digi::DigiActionCreation;
+#pragma link C++ class dd4hep::digi::DigiContext;
+#pragma link C++ class dd4hep::digi::DigiKernel;
+#pragma link C++ class dd4hep::digi::DigiAction;
 #pragma link C++ class dd4hep::digi::DigiEventAction;
-#pragma link C++ class dd4hep::digi::EventActionHandle;
-
+#pragma link C++ class dd4hep::digi::DigiInputAction;
 #pragma link C++ class dd4hep::digi::DigiActionSequence;
-#pragma link C++ class dd4hep::digi::ActionSequenceHandle;
-
 #pragma link C++ class dd4hep::digi::DigiSynchronize;
-#pragma link C++ class dd4hep::digi::SynchronizeHandle;
-
 #pragma link C++ class dd4hep::digi::DigiSignalProcessor;
-#pragma link C++ class dd4hep::digi::SignalProcessorHandle;
+
+#pragma link C++ class dd4hep::digi::DigiContainerProcessor;
+#pragma link C++ class dd4hep::digi::DigiContainerSequence;
+#pragma link C++ class dd4hep::digi::DigiContainerSequenceAction;
+#pragma link C++ class dd4hep::digi::DigiMultiContainerProcessor;
+
+#pragma link C++ class dd4hep::digi::DigiSegmentProcessor;
+#pragma link C++ class dd4hep::digi::DigiSegmentSequence;
+#pragma link C++ class dd4hep::digi::DigiSegmentSplitter;
 
 /// Digi data item wrappers
+#pragma link C++ class dd4hep::digi::Particle+;
+#pragma link C++ class dd4hep::digi::EnergyDeposit+;
+#pragma link C++ class dd4hep::digi::ParticleMapping+;
+#pragma link C++ class dd4hep::digi::DepositMapping+;
+#pragma link C++ class dd4hep::digi::DepositVector+;
+
 #pragma link C++ class dd4hep::digi::DigiEvent;
-#pragma link C++ class dd4hep::digi::DigiEnergyDeposits+;
-#pragma link C++ class dd4hep::digi::DigiCounts+;
 
 #endif

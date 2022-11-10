@@ -521,11 +521,43 @@ VolumeExtension::VolumeExtension()
 
 /// Default destructor
 VolumeExtension::~VolumeExtension() {
+  detail::deletePtr(properties);
   region.clear();
   limits.clear();
   vis.clear();
   sens_det.clear();
   DECREMENT_COUNTER;
+}
+
+/// Copy constructor
+VolumeExtension::VolumeExtension(const VolumeExtension& c)   {
+  this->copy(c);
+}
+
+/// Copy assignment
+VolumeExtension& VolumeExtension::operator=(const VolumeExtension& c)   {
+  this->copy(c);
+  return *this;
+}
+
+/// Copy the object
+void VolumeExtension::copy(const VolumeExtension& c) {
+  if ( this != &c )   {
+    magic      = c.magic;
+    region     = c.region;
+    limits     = c.limits;
+    vis        = c.vis;
+    sens_det   = c.sens_det;
+    referenced = c.referenced;
+    detail::deletePtr(properties);
+    if ( c.properties )    {
+      properties = new TList();
+      properties->SetOwner();
+      TIter next(properties);
+      TNamed *property;
+      while ((property = (TNamed*)next())) properties->Add(new TNamed(*property));
+    }
+  }
 }
 
 /// TGeoExtension overload: Method called whenever requiring a pointer to the extension
@@ -647,7 +679,7 @@ bool Volume::isReflected()   const    {
 }
 
 /// Divide volume into subsections (See the ROOT manuloa for details)
-Volume Volume::divide(const std::string& divname, int iaxis, int ndiv,
+Volume Volume::divide(const string& divname, int iaxis, int ndiv,
                       double start, double step, int numed, const char* option)   {
   TGeoVolume* p = m_element;
   if ( p )  {
@@ -1229,6 +1261,38 @@ bool Volume::isSensitive() const {
   return _data(*this)->sens_det.isValid();
 }
 
+/// Check for existence of properties
+bool Volume::hasProperties()  const   {
+  return _data(*this)->properties != nullptr;
+}
+
+/// Add Volume property (name-value pair)
+void Volume::addProperty(const string& nam, const string& val) const  {
+  auto* o = _data(*this);
+  if ( !o->properties )   {
+    o->properties = new TList();
+    o->properties->SetOwner();
+  }
+  TNamed *prop = (TNamed*)o->properties->FindObject(nam.c_str());
+  if ( !prop )   {
+    o->properties->Add(new TNamed(nam.c_str(), val.c_str()));
+    return;
+  }
+  except("Volume::addProperty", "Volume: '%s' Property '%s' is already set!",
+	 ptr()->GetName(), nam.c_str());
+}
+
+/// Access property value. Returns default_value if the property is not present
+string Volume::getProperty(const string& nam, const string& default_val)   const {
+  const auto* o = _data(*this);
+  if ( !o->properties )   {
+    return default_val;
+  }
+  TNamed *prop = (TNamed*)o->properties->FindObject(nam.c_str());
+  if ( prop ) return prop->GetTitle();
+  return default_val;
+}
+
 /// Constructor to be used when creating a new assembly object
 Assembly::Assembly(const string& nam) {
   m_element = _createTGeoVolumeAssembly(nam);
@@ -1255,7 +1319,7 @@ void VolumeMulti::verifyVolumeMulti()   {
 }
 
 /// Output mesh vertices to string
-std::string dd4hep::toStringMesh(PlacedVolume place, int prec)   {
+string dd4hep::toStringMesh(PlacedVolume place, int prec)   {
   Volume       vol   = place->GetVolume();
   TGeoMatrix*  mat   = place->GetMatrix();
   Solid        sol   = vol.solid();

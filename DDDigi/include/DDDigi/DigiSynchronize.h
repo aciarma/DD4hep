@@ -13,8 +13,9 @@
 #ifndef DDDIGI_DIGISYNCHRONIZE_H
 #define DDDIGI_DIGISYNCHRONIZE_H
 
-// Framework incloude files
-#include "DDDigi/DigiEventAction.h"
+/// Framework incloude files
+#include <DDDigi/DigiEventAction.h>
+#include <DDDigi/DigiParallelWorker.h>
 
 /// Namespace for the AIDA detector description toolkit
 namespace dd4hep {
@@ -33,8 +34,10 @@ namespace dd4hep {
      */
     class DigiSynchronize : public DigiEventAction {
     protected:
+      using Worker    = DigiParallelWorker<DigiEventAction,DigiContext,int>;
+      using Workers   = DigiParallelWorkers<Worker>;
       /// The list of action objects to be called
-      Actors<DigiEventAction> m_actors;
+      Workers m_actors;
 
     protected:
       /// Define standard assignments and constructors
@@ -45,21 +48,11 @@ namespace dd4hep {
       DigiSynchronize(const DigiKernel& kernel, const std::string& nam);
       /// Default destructor
       virtual ~DigiSynchronize();
-      /// Get an action member by name
-      DigiEventAction* get(const std::string& name) const;
-      /// Access the children
-      const Actors<DigiEventAction>& children()   const   {
-        return m_actors;
-      }
       /// Adopt a new action as part of the sequence. Sequence takes ownership.
       virtual void adopt(DigiEventAction* action);
       /// Begin-of-event callback
       virtual void execute(DigiContext& context)  const override;
-      ///
-      void analyze();
     };
-
   }    // End namespace digi
 }      // End namespace dd4hep
-
 #endif // DDDIGI_DIGISYNCHRONIZE_H

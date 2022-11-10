@@ -29,24 +29,12 @@ Geant4IsotropeGenerator::Geant4IsotropeGenerator(Geant4Context* ctxt, const stri
   declareProperty("PhiMax", m_phiMax = 2.0*M_PI);
   declareProperty("ThetaMin", m_thetaMin = 0.0);
   declareProperty("ThetaMax", m_thetaMax = M_PI);
-  declareProperty("MomentumMin", m_momentumMin =  0.0);
-  declareProperty("MomentumMax", m_momentumMax = -1.0);
   declareProperty("Distribution", m_distribution = "uniform" );
 }
 
 /// Default destructor
 Geant4IsotropeGenerator::~Geant4IsotropeGenerator() {
   InstanceCount::decrement(this);
-}
-
-/// Uniform momentum distribution
-void Geant4IsotropeGenerator::getParticleMomentumUniform(double& momentum) const  {
-  Geant4Event&  evt = context()->event();
-  Geant4Random& rnd = evt.random();
-  if (m_momentumMax < m_momentumMin)
-    momentum = m_momentumMin+(momentum-m_momentumMin)*rnd.rndm();
-  else
-    momentum = m_momentumMin+(m_momentumMax-m_momentumMin)*rnd.rndm();
 }
 
 /// Uniform particle distribution
@@ -88,8 +76,8 @@ void Geant4IsotropeGenerator::getParticleDirectionEta(int, ROOT::Math::XYZVector
   // See https://en.wikipedia.org/wiki/Pseudorapidity
   const double dmin = std::numeric_limits<double>::epsilon();
   double phi        = m_phiMin+(m_phiMax-m_phiMin)*rnd.rndm();
-  double eta_min    = Distribution::eta(m_thetaMin>dmin ? m_thetaMin : dmin);
-  double eta_max    = Distribution::eta(m_thetaMax>(M_PI-dmin) ? m_thetaMax : M_PI-dmin);
+  double eta_max    = Distribution::eta(m_thetaMin>dmin ? m_thetaMin : dmin);
+  double eta_min    = Distribution::eta(m_thetaMax>(M_PI-dmin) ? M_PI-dmin : m_thetaMax);
   double eta        = eta_min + (eta_max-eta_min)*rnd.rndm();
   double x1         = std::cos(phi);
   double x2         = std::sin(phi);
@@ -128,7 +116,7 @@ void Geant4IsotropeGenerator::getParticleDirectionFFbar(int, ROOT::Math::XYZVect
   }
 }
 
-/// Particle modification. Caller presets defaults to: ( direction = m_direction, momentum = m_energy)
+/// Particle modification. Caller presets defaults to: ( direction = m_direction, momentum = [mMin, mMax])
 void Geant4IsotropeGenerator::getParticleDirection(int num, ROOT::Math::XYZVector& direction, double& momentum) const   {
   switch(::toupper(m_distribution[0]))  {
   case 'C':  // cos(theta)

@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 class Filter(ConfigHelper):
   """Configuration for sensitive detector filters
 
-  Set the default filter for tracker or caliromter
+  Set the default filter for 'tracker'
   >>> SIM.filter.tracker = "edep1kev"
+  Use no filter for 'calorimeter' by default
   >>> SIM.filter.calo = ""
 
   Assign a filter to a sensitive detector via pattern matching
@@ -156,5 +157,10 @@ class Filter(ConfigHelper):
           logger.info("Adding filter '%s' matched with '%s' to sensitive detector for '%s' " % (filt, pattern, det))
           seq.add(self.filters[filt]['filter'])
 
-    if not foundFilter and defaultFilter:
+    if foundFilter:
+      return
+    if defaultFilter:
+      logger.info("Adding default filter '%s' to sensitive detector for '%s' " % (defaultFilter, det))
       seq.add(self.filters[defaultFilter]['filter'])
+      return
+    logger.info("Not adding any filter to sensitive detector for '%s' " % det)
