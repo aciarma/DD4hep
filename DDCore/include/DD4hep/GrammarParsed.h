@@ -54,17 +54,27 @@ namespace dd4hep {
     std::pair<int,double> grammar_evaluate_item(std::string val);
 
     /// PropertyGrammar overload: Retrieve value from string
-    template <typename TYPE> bool grammar_fromString(const BasicGrammar& gr, void* ptr, const std::string& string_val)   {
+    template <typename TYPE> bool grammar_fromString(const BasicGrammar& gr, void* ptr, const std::string& val)   {
       int sc = 0;
       TYPE temp;
       try   {
-	sc = ::dd4hep::Parsers::parse(temp,string_val);
+#ifdef DD4HEP_DEBUG_PROPERTIES
+	std::cout << "Parsing " << val << std::endl;
+#endif
+	sc = ::dd4hep::Parsers::parse(temp, val);
+	if ( sc )   {
+	  *(TYPE*)ptr = temp;
+	  return true;
+	}
       }
       catch (...)  {
       }
-      if ( !sc ) sc = gr.evaluate(&temp,string_val);
-#if 0
-      std::cout << "Sc=" << sc << "  Converting value: " << string_val 
+#ifdef DD4HEP_DEBUG_PROPERTIES
+      std::cout << "Parsing " << val << "FAILED" << std::endl;
+#endif
+      if ( !sc ) sc = gr.evaluate(&temp,val);
+#ifdef DD4HEP_DEBUG_PROPERTIES
+      std::cout << "Sc=" << sc << "  Converting value: " << val 
 		<< " to type " << typeid(TYPE).name() 
 		<< std::endl;
 #endif
@@ -72,7 +82,7 @@ namespace dd4hep {
 	*(TYPE*)ptr = temp;
 	return true;
       }
-      BasicGrammar::invalidConversion(string_val, typeid(TYPE));
+      BasicGrammar::invalidConversion(val, typeid(TYPE));
       return false;
     }
 
@@ -84,17 +94,30 @@ namespace dd4hep {
     }
 
     /// Item evaluator
-    template <typename T> inline int eval_item(T* ptr, std::string val)  {
-      auto result = grammar_evaluate_item(val);
-      if (result.first != tools::Evaluator::OK) {
-	return 0;
+    template <typename T> inline int eval_item(T* ptr, const std::string& val)  {
+      /// First try to parse the value with spirit.
+      try   {
+	T temp;
+	int sc = ::dd4hep::Parsers::parse(temp,val);
+	if ( sc )  {
+	  *ptr = temp;
+	  return 1;
+	}
       }
-      *ptr = (T)result.second;
-      return 1;
+      catch (...)  {
+      }
+      /// If this failed: try to evaluate it with the expression parser
+      auto result = grammar_evaluate_item(val);
+      if (result.first == tools::Evaluator::OK) {
+	*ptr = (T)result.second;
+	return 1;
+      }
+      /// This also failed: Return error.
+      return 0;
     }
 
-    /// String evaluator
-    template <> inline int eval_item<std::string>(std::string* ptr, std::string val)  {
+    /// String evaluator: Nothing to do!
+    template <> inline int eval_item<std::string>(std::string* ptr, const std::string& val)  {
       *ptr = val;
       return 1;
     }
@@ -270,10 +293,20 @@ namespace dd4hep {
 
 #define DD4HEP_DEFINE_PARSER_GRAMMAR_EVAL(xx,func)			\
   namespace dd4hep { namespace detail {					\
-      template<> int grammar_eval<xx>(const BasicGrammar&, void* _p, const std::string& _v) { return func ((xx*)_p,_v); }}}
+      template<> int grammar_eval<xx>(const BasicGrammar&, void* _p, const std::string& _v) {\
+	return func ((xx*)_p,_v);					\
+      }}}
 
-#define DD4HEP_DEFINE_PARSER_GRAMMAR_INSTANCE(serial,xx)   namespace dd4hep { template class Grammar< xx >; } \
-  namespace DD4HEP_PARSER_GRAMMAR_CNAME(serial,0) { static auto s_reg = ::dd4hep::GrammarRegistry::pre_note< xx >(); }
+
+#define DD4HEP_DEFINE_PARSER_GRAMMAR_INSTANCE(serial,xx)   \
+  namespace dd4hep {							\
+    template class Grammar< xx >; 					\
+    template BasicGrammar const& BasicGrammar::instance< xx >();	\
+    template const GrammarRegistry& GrammarRegistry::pre_note<xx>(int); \
+  }									\
+  namespace DD4HEP_PARSER_GRAMMAR_CNAME(serial,0) {			\
+    static auto s_reg = ::dd4hep::GrammarRegistry::pre_note< xx >(1);	\
+  }
 
 #define DD4HEP_DEFINE_PARSER_GRAMMAR_SERIAL(serial,ctxt,xx,func)	\
   DD4HEP_DEFINE_PARSER_GRAMMAR_EVAL(xx,func)				\

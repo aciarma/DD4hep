@@ -15,7 +15,6 @@
 #define DDG4_GEANT4PARTICLE_H
 
 // Framework include files
-#include "DD4hep/Memory.h"
 
 // ROOT includes
 #include "Math/Vector4D.h"
@@ -28,6 +27,7 @@ class G4VProcess;
 #include <set>
 #include <map>
 #include <vector>
+#include <memory>
 
 /// Namespace for the AIDA detector description toolkit
 namespace dd4hep {
@@ -54,17 +54,17 @@ namespace dd4hep {
 
     /// Track properties
     enum Geant4ParticleProperties {
-      G4PARTICLE_CREATED_HIT = 1<<1,
-      G4PARTICLE_PRIMARY = 1<<2,
-      G4PARTICLE_HAS_SECONDARIES = 1<<3,
+      G4PARTICLE_CREATED_HIT         = 1<<1,
+      G4PARTICLE_PRIMARY             = 1<<2,
+      G4PARTICLE_HAS_SECONDARIES     = 1<<3,
       G4PARTICLE_ABOVE_ENERGY_THRESHOLD = 1<<4,
-      G4PARTICLE_KEEP_PROCESS = 1<<5,
-      G4PARTICLE_KEEP_PARENT = 1<<6,
+      G4PARTICLE_KEEP_PROCESS        = 1<<5,
+      G4PARTICLE_KEEP_PARENT         = 1<<6,
       G4PARTICLE_CREATED_CALORIMETER_HIT = 1<<7,
       G4PARTICLE_CREATED_TRACKER_HIT = 1<<8,
-      G4PARTICLE_KEEP_USER = 1<<9,
-      G4PARTICLE_KEEP_ALWAYS = 1<<10,
-      G4PARTICLE_FORCE_KILL = 1<<11,
+      G4PARTICLE_KEEP_USER           = 1<<9,
+      G4PARTICLE_KEEP_ALWAYS         = 1<<10,
+      G4PARTICLE_FORCE_KILL          = 1<<11,
 
       // Generator status for a given particles: bit 0...4, agreed by many formats (HepMC, LCIO, ....):
       G4PARTICLE_GEN_EMPTY           = 1<<0,  // Empty line
@@ -94,8 +94,6 @@ namespace dd4hep {
       G4PARTICLE_LAST_NOTHING = 1<<31
     };
 
-
-
     /// Data structure to store the MC particle information
     /**
      *  \author  M.Frank
@@ -106,29 +104,47 @@ namespace dd4hep {
     public:
       typedef std::set<int> Particles;
       /// Reference counter
-      int ref = 0;           //! not persistent
-      int id  = 0;
-      int originalG4ID = 0;  //! not persistent
-      int g4Parent = 0, reason = 0, mask = 0;
-      int steps  = 0, secondaries = 0, pdgID = 0;
-      int status = 0, colorFlow[2] {0,0};
-      unsigned short genStatus= 0;
-      char  charge = 0;
-      char  _spare[1] {0};
-      float spin[3] {0E0,0E0,0E0};
+      int ref                      { 0 };           //! not persistent
+      int id                       { 0 };
+      int originalG4ID             { 0 };           //! not persistent
+      int g4Parent                 { 0 };
+      int reason                   { 0 };
+      int mask                     { 0 };
+      int steps                    { 0 };
+      int secondaries              { 0 };
+      int pdgID                    { 0 };
+      int status                   { 0 };
+      int colorFlow[2]             { 0, 0 };
+      unsigned short genStatus     { 0 };
+      char  charge                 { 0 };
+      char  _spare[1]              { 0 };
+      float spin[3]                { 0E0,0E0,0E0 };
       // 12 ints + 4 bytes + 3 floats should be aligned to 8 bytes....
+      /// The starting vertex
       double vsx  = 0E0, vsy  = 0E0, vsz = 0E0;
+      /// The end vertex
       double vex  = 0E0, vey  = 0E0, vez = 0E0;
+      /// The track momentum at the start vertex
       double psx  = 0E0, psy  = 0E0, psz = 0E0;
+      /// The track momentum at the end vertex
       double pex  = 0E0, pey  = 0E0, pez = 0E0;
-      double mass = 0E0, time = 0E0, properTime = 0E0;
-      /// The list of daughters of this MC particle
+      /// Particle mass
+      double mass       { 0E0 };
+      /// Particle creation time
+      double time       { 0E0 };
+      /// Proper time
+      double properTime { 0E0 };
+      /// The list of parents of this MC particle
       Particles parents;
+      /// The list of daughters of this MC particle
       Particles daughters;
 
       /// User data extension if required
-      dd4hep_ptr<ParticleExtension> extension;   //! not persisten. ROOT cannot handle
+      std::unique_ptr<ParticleExtension> extension  { };
+      /// Reference to the G4VProcess, which created this track
       const G4VProcess *process = 0;             //! not persistent
+
+    public:
       /// Default constructor
       Geant4Particle();
       /// Constructor with ID initialization
@@ -169,6 +185,7 @@ namespace dd4hep {
     protected:
       /// Particle pointer
       Geant4Particle* particle;
+
     public:
       /// Default constructor
       Geant4ParticleHandle(Geant4Particle* part);
@@ -273,13 +290,13 @@ namespace dd4hep {
       return ROOT::Math::PxPyPzM4D<double>(p->psx,p->psy,p->psz,p->mass);
     }
 
-    /// Access patricle momentum, energy as 4 vector
+    /// Access start vertex as 3-vector
     inline ROOT::Math::Cartesian3D<double> Geant4ParticleHandle::startVertex() const {
       const Geant4Particle* p = particle;
       return ROOT::Math::Cartesian3D<double>(p->vsx,p->vsy,p->vsz);
     }
 
-    /// Access patricle momentum, energy as 4 vector
+    /// Access end start vertex as 3-vector
     inline ROOT::Math::Cartesian3D<double> Geant4ParticleHandle::endVertex()  const {
       const Geant4Particle* p = particle;
       return ROOT::Math::Cartesian3D<double>(p->vex,p->vey,p->vez);
@@ -325,6 +342,7 @@ namespace dd4hep {
       /// Map associating the G4Track identifiers with identifiers of existing MCParticles
       TrackEquivalents equivalentTracks;
 
+    public:
       /// Default constructor
       Geant4ParticleMap() {}
       /// Default destructor

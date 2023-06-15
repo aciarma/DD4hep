@@ -29,6 +29,7 @@
 #include <DD4hep/FieldTypes.h>
 #include <DD4hep/Printout.h>
 #include <DD4hep/Factories.h>
+#include <DD4hep/Path.h>
 #include <DD4hep/Plugins.h>
 #include <DD4hep/detail/SegmentationsInterna.h>
 #include <DD4hep/detail/DetectorInterna.h>
@@ -127,6 +128,7 @@ namespace {
     bool includes     = false;
     bool matrix       = false;
     bool surface      = false;
+    bool include_guard= true;
   } s_debug;
 }
 
@@ -135,7 +137,7 @@ static Ref_t create_ConstantField(Detector& /* description */, xml_h e) {
   xml_comp_t field(e), strength(e.child(_U(strength)));
   string t = e.attr<string>(_U(field));
   ConstantField* ptr = new ConstantField();
-  ptr->type = ::toupper(t[0]) == 'E' ? CartesianField::ELECTRIC : CartesianField::MAGNETIC;
+  ptr->field_type = ::toupper(t[0]) == 'E' ? CartesianField::ELECTRIC : CartesianField::MAGNETIC;
   ptr->direction.SetX(strength.x());
   ptr->direction.SetY(strength.y());
   ptr->direction.SetZ(strength.z());
@@ -186,6 +188,7 @@ static Ref_t create_SolenoidField(Detector& description, xml_h e) {
     ptr->minZ = c.attr<double>(_U(zmin));
   else
     ptr->minZ = -ptr->maxZ;
+  ptr->field_type = CartesianField::MAGNETIC;
   obj.assign(ptr, c.nameStr(), c.typeStr());
   return obj;
 }
@@ -217,6 +220,7 @@ static Ref_t create_DipoleField(Detector& /* description */, xml_h e) {
       val = _multiply<double>(coll.text(), mult);
     ptr->coefficents.emplace_back(val);
   }
+  ptr->field_type = CartesianField::MAGNETIC;
   obj.assign(ptr, c.nameStr(), c.typeStr());
   return obj;
 }
@@ -244,7 +248,7 @@ static Ref_t create_MultipoleField(Detector& description, xml_h e) {
     ptr->volume = xml::createShape(description, type, child);
   }
   ptr->B_z = bz;
-  ptr->transform = Transform3D(rot,pos).Inverse();
+  ptr->transform = Transform3D(rot,pos);
   for (xml_coll_t coll(c, _U(coefficient)); coll; ++coll, mult /= lunit) {
     xml_dim_t coeff = coll;
     if ( coll.hasAttr(_U(value)) )
@@ -255,6 +259,7 @@ static Ref_t create_MultipoleField(Detector& description, xml_h e) {
     val = coeff.skew(0.0) * mult;
     ptr->skews.emplace_back(val);
   }
+  ptr->field_type = CartesianField::MAGNETIC;
   obj.assign(ptr, c.nameStr(), c.typeStr());
   return obj;
 }
@@ -267,6 +272,29 @@ static long load_Compact(Detector& description, xml_h element) {
 }
 DECLARE_XML_DOC_READER(lccdd,load_Compact)
 DECLARE_XML_DOC_READER(compact,load_Compact)
+
+ // We create out own type to avoid a class over the extension types
+  // attached to the Detector as a set of std::string is common.
+class ProcessedFilesSet: public std::set<std::string> {};
+
+/// Check whether a XML file was already processed
+bool check_process_file(Detector& description, std::string filename) {
+
+  // In order to have a global compact that is kept across plugin invocations
+  // we add it as an extension to the the detector description.
+  auto already_processed = description.extension<ProcessedFilesSet>( false );
+  if ( !already_processed ) {
+    already_processed = new ProcessedFilesSet( );
+    description.addExtension<ProcessedFilesSet>(already_processed );
+  }
+  std::string npath = dd4hep::Path{filename}.normalize();
+  if (already_processed->find(npath) != already_processed->end() ) {
+    printout(INFO, "Compact","++ Already processed xml document %s.", npath.c_str());
+    return true;
+  }
+  already_processed->insert(npath);
+  return false;
+}
 
 /** Convert parser debug flags.
  */
@@ -284,9 +312,11 @@ template <> void Converter<Debug>::operator()(xml_h e) const {
     else if ( nam.substr(0,6) == "segmen" ) s_debug.segmentation = (0 != val);
     else if ( nam.substr(0,6) == "consta" ) s_debug.constants    = (0 != val);
     else if ( nam.substr(0,6) == "define" ) s_debug.constants    = (0 != val);
-    else if ( nam.substr(0,6) == "includ" ) s_debug.includes      = (0 != val);
+    else if ( nam.substr(0,6) == "includ" ) s_debug.includes     = (0 != val);
     else if ( nam.substr(0,6) == "matrix" ) s_debug.matrix       = (0 != val);
     else if ( nam.substr(0,6) == "surfac" ) s_debug.surface      = (0 != val);
+    else if ( nam.substr(0,6) == "incgua" ) s_debug.include_guard= (0 != val);
+
   }
 }
   
@@ -296,15 +326,15 @@ template <> void Converter<Debug>::operator()(xml_h e) const {
  */
 template <> void Converter<Plugin>::operator()(xml_h e) const {
   xml_comp_t plugin(e);
-  vector<char*> argv;
-  vector<string> arguments;
   string name = plugin.nameStr();
   string type = "default";
-  xml_attr_t typ_attr = e.attr_nothrow(_U(type));
-  if ( typ_attr )   {
-    type = e.attr<string>(_U(type));
+
+  if ( xml_attr_t typ_attr = e.attr_nothrow(_U(type)) )   {
+    type = e.attr<string>(typ_attr);
   }
   if ( type == "default" )  {
+    vector<char*> argv;
+    vector<string> arguments;
     for (xml_coll_t coll(e, _U(arg)); coll; ++coll) {
       string val = coll.attr<string>(_U(value));
       arguments.emplace_back(val);
@@ -1124,6 +1154,10 @@ template <> void Converter<LimitSet>::operator()(xml_h e) const {
     limit.unit      = c.attr<string>(_U(unit));
     limit.value     = _multiply<double>(limit.content, limit.unit);
     ls.addLimit(limit);
+    printout(s_debug.limits ? ALWAYS : DEBUG, "Compact",
+	     "++ %s: add %-6s: [%s] = %s [%s] = %f",
+	     ls.name(), limit.name.c_str(), limit.particles.c_str(),
+	     limit.content.c_str(), limit.unit.c_str(), limit.value);
   }
   limit.name      = "cut";
   for (xml_coll_t c(e, _U(cut)); c; ++c) {
@@ -1132,6 +1166,10 @@ template <> void Converter<LimitSet>::operator()(xml_h e) const {
     limit.unit      = c.attr<string>(_U(unit));
     limit.value     = _multiply<double>(limit.content, limit.unit);
     ls.addCut(limit);
+    printout(s_debug.limits ? ALWAYS : DEBUG, "Compact",
+	     "++ %s: add %-6s: [%s] = %s [%s] = %f",
+	     ls.name(), limit.name.c_str(), limit.particles.c_str(),
+	     limit.content.c_str(), limit.unit.c_str(), limit.value);
   }
   description.addLimitSet(ls);
 }
@@ -1383,6 +1421,11 @@ template <> void Converter<DetElement>::operator()(xml_h element) const {
 /// Read material entries from a seperate file in one of the include sections of the geometry
 template <> void Converter<IncludeFile>::operator()(xml_h element) const   {
   xml::DocumentHolder doc(xml::DocumentHandler().load(element, element.attr_value(_U(ref))));
+  if ( s_debug.include_guard) {
+    // Include guard, we check whether this file was already processed
+    if (check_process_file(description, doc.uri()))
+      return;
+  }
   xml_h root = doc.root();
   if ( s_debug.includes )   {
     printout(ALWAYS, "Compact","++ Processing xml document %s.",doc.uri().c_str());
@@ -1406,25 +1449,56 @@ template <> void Converter<JsonFile>::operator()(xml_h element) const {
 
 /// Read alignment entries from a seperate file in one of the include sections of the geometry
 template <> void Converter<XMLFile>::operator()(xml_h element) const {
-  this->description.fromXML(element.attr<string>(_U(ref)));
+  string fname = element.attr<string>(_U(ref));
+  if ( s_debug.includes )   {
+    printout(ALWAYS, "Compact","++ Processing xml document %s.", fname.c_str());
+  }
+  this->description.fromXML(fname);
 }
 
 /// Read material entries from a seperate file in one of the include sections of the geometry
 template <> void Converter<World>::operator()(xml_h element) const {
-  xml_det_t  world(element);
-  xml_comp_t shape = world.child(_U(shape));
-  VisAttr    vis = description.visAttributes("WorldVis");
-  Material   mat = world.hasAttr(_U(material))
-    ? description.material(world.attr<string>(_U(material))) : description.air();
+  xml_elt_t  x_world(element);
+  xml_comp_t x_shape = x_world.child(_U(shape), false);
+  xml_attr_t att = x_world.getAttr(_U(material));
+  Material   mat = att ? description.material(x_world.attr<string>(att)) : description.air();
+  Volume world_vol;
 
-  if ( !vis.isValid() ) vis = description.invisible();
   /// Create the shape and the corresponding volume
-  Solid    sol(shape.createShape());
-  Volume   vol("world_volume", sol, mat);
-  vol.setVisAttributes(vis);
-  description.manager().SetTopVolume(vol.ptr());
-  printout(INFO, "Compact", "++ Converted successfully world %s. vis:%s material:%s.",
-           vol.name(), vis.name(), mat.name());
+  if ( x_shape )   {
+    Solid sol(x_shape.createShape());
+    world_vol = Volume("world_volume", sol, mat);
+    printout(INFO, "Compact", "++ Created successfully world volume '%s'. shape: %s material:%s.",
+             world_vol.name(), sol.type(), mat.name());
+    description.manager().SetTopVolume(world_vol.ptr());
+  }
+  else   {
+    world_vol = description.worldVolume();
+    if ( !world_vol && att )   {
+      /// If we require a user configured world, but no shape is given, define the standard box.
+      /// Implicitly assumes that the box dimensions are given in the standard way.
+      Box sol("world_x", "world_y", "world_z");
+      world_vol = Volume("world_volume", sol, mat);
+      printout(INFO, "Compact", "++ Created world volume '%s' as %s (%.2f, %.2f %.2f [cm]) material:%s.",
+               world_vol.name(), sol.type(),
+               sol.x()/dd4hep::cm, sol.y()/dd4hep::cm, sol.z()/dd4hep::cm,
+               mat.name());
+      description.manager().SetTopVolume(world_vol.ptr());
+    }
+    else if ( !world_vol )  {
+      except("Compact", "++ Logical error: "
+	     "You cannot configure the world volume before it is created and not giving creation instructions.");
+    }
+  }
+  // Delegate further configuration o0f the world volume to the xml utilities:
+  if ( world_vol.isValid() )   {
+    xml::configVolume(description, x_world, world_vol, false, true);
+    auto vis = world_vol.visAttributes();
+    if ( !vis.isValid() )  {
+      vis = description.visAttributes("WorldVis");
+      world_vol.setVisAttributes(vis);
+    }
+  }
 }
 
 /// Read material entries from a seperate file in one of the include sections of the geometry
@@ -1484,6 +1558,11 @@ template <> void Converter<DetElementInclude>::operator()(xml_h element) const {
   string type = element.hasAttr(_U(type)) ? element.attr<string>(_U(type)) : string("xml");
   if ( type == "xml" )  {
     xml::DocumentHolder doc(xml::DocumentHandler().load(element, element.attr_value(_U(ref))));
+    if ( s_debug.include_guard ) {
+      // Include guard, we check whether this file was already processed
+      if (check_process_file(description, doc.uri()))
+        return;
+    }
     if ( s_debug.includes )   {
       printout(ALWAYS, "Compact","++ Processing xml document %s.",doc.uri().c_str());
     }
@@ -1534,6 +1613,8 @@ template <> void Converter<Compact>::operator()(xml_h element) const {
   bool close_document = true;
   bool close_geometry = true;
   bool build_reflections = false;
+  xml_dim_t world = element.child(_U(world), false);
+
 
   if (element.hasChild(_U(debug)))
     (Converter<Debug>(description))(xml_h(compact.child(_U(debug))));
@@ -1597,20 +1678,22 @@ template <> void Converter<Compact>::operator()(xml_h element) const {
   xml_coll_t(compact, _U(materials)).for_each(_U(material), Converter<Material>(description));
   xml_coll_t(compact, _U(materials)).for_each(_U(plugin),   Converter<Plugin> (description));
   
-  xml_coll_t(compact, _U(display)).for_each(_U(include), Converter<DetElementInclude>(description));
-  xml_coll_t(compact, _U(display)).for_each(_U(vis), Converter<VisAttr>(description));
+  printout(DEBUG, "Compact", "++ Converting visualization attributes...");
+  xml_coll_t(compact, _U(display)).for_each(_U(include),    Converter<DetElementInclude>(description));
+  xml_coll_t(compact, _U(display)).for_each(_U(vis),        Converter<VisAttr>(description));
+  printout(DEBUG, "Compact", "++ Converting limitset structures...");
+  xml_coll_t(compact, _U(limits)).for_each(_U(include),     Converter<DetElementInclude>(description));
+  xml_coll_t(compact, _U(limits)).for_each(_U(limitset),    Converter<LimitSet>(description));
+  printout(DEBUG, "Compact", "++ Converting region   structures...");
+  xml_coll_t(compact, _U(regions)).for_each(_U(include),    Converter<DetElementInclude>(description));
+  xml_coll_t(compact, _U(regions)).for_each(_U(region),     Converter<Region>(description));
   
-  if (element.hasChild(_U(world)))
-    (Converter<World>(description))(xml_h(compact.child(_U(world))));
-
+  if ( world )  {
+    (Converter<World>(description))(world);
+  }
   if ( open_geometry ) description.init();
-  xml_coll_t(compact, _U(limits)).for_each(_U(include),  Converter<DetElementInclude>(description));
-  xml_coll_t(compact, _U(limits)).for_each(_U(limitset), Converter<LimitSet>(description));
-
   printout(DEBUG, "Compact", "++ Converting readout  structures...");
   xml_coll_t(compact, _U(readouts)).for_each(_U(readout), Converter<Readout>(description));
-  printout(DEBUG, "Compact", "++ Converting region   structures...");
-  xml_coll_t(compact, _U(regions)).for_each(_U(region), Converter<Region>(description));
   printout(DEBUG, "Compact", "++ Converting included files with subdetector structures...");
   xml_coll_t(compact, _U(detectors)).for_each(_U(include), Converter<DetElementInclude>(description));
   printout(DEBUG, "Compact", "++ Converting detector structures...");
@@ -1631,7 +1714,8 @@ template <> void Converter<Compact>::operator()(xml_h element) const {
     ReflectionBuilder rb(description);
     rb.execute();
   }
-  xml_coll_t(compact, _U(plugins)).for_each(_U(plugin), Converter<Plugin> (description));
+  xml_coll_t(compact, _U(plugins)).for_each(_U(plugin),  Converter<Plugin>  (description));
+  xml_coll_t(compact, _U(plugins)).for_each(_U(include), Converter<XMLFile> (description));
 }
 
 #ifdef _WIN32

@@ -17,13 +17,7 @@
 #include "DD4hep/Printout.h"
 
 // C/C++ include files
-#include <algorithm>
-#include <functional>
-#include <numeric>
-#include <stdexcept>
-#include <cstdint>
 #include <cstring>
-#include <map>
 
 #if defined(__linux) || defined(__APPLE__) || defined(__powerpc64__)
 #include <cxxabi.h>
@@ -179,35 +173,50 @@ namespace {
 /// Convert volumeID to string format (016X)
 std::string dd4hep::volumeID(VolumeID vid)   {
   char text[32];
-  ::snprintf(text,sizeof(text),"%016llx",vid);
+  ::snprintf(text,sizeof(text),"%016lx", vid);
   return text;
 }
 
 /// 64 bit hash function
 unsigned long long int dd4hep::detail::hash64(const char* key)   {
-  unsigned char* str = (unsigned char*)key;
-  unsigned long long int hash = FNV1a_64::hashinit;
-  for ( ; *str; ++str) hash = FNV1a_64::doByte(hash, *str);
-  return hash;
-}
-
-/// 64 bit hash function
-unsigned long long int dd4hep::detail::hash64(const void* key, std::size_t len)  {
-  const unsigned char* str = (const unsigned char*)key;
-  unsigned long long int hash = FNV1a_64::hashinit;
-  for ( ; --len; ++str) hash = FNV1a_64::doByte(hash, *str);
-  return hash;
+  return update_hash64(FNV1a_64::hashinit, key);
 }
 
 /// 64 bit hash function
 unsigned long long int dd4hep::detail::hash64(const std::string& key)  {
-  return std::accumulate(begin(key),end(key),FNV1a_64::hashinit,FNV1a_64::doByte);
+  return update_hash64(FNV1a_64::hashinit, key.c_str(), key.length());
+}
+
+/// 64 bit hash function
+unsigned long long int dd4hep::detail::hash64(const void* key, std::size_t len)  {
+  return update_hash64(FNV1a_64::hashinit, key, len);
+}
+
+/// 64 bit hash update function
+unsigned long long int dd4hep::detail::update_hash64(unsigned long long int hash, const std::string& key)  {
+  return update_hash64(hash, key.c_str(), key.length());
+}
+
+/// 64 bit hash update function
+unsigned long long int dd4hep::detail::update_hash64(unsigned long long int hash, const char* key)  {
+  const unsigned char* str = (const unsigned char*)key;
+  for ( ; *str; ++str) hash = FNV1a_64::doByte(hash, *str);
+  return hash;
+}
+
+/// 64 bit hash update function
+unsigned long long int dd4hep::detail::update_hash64(unsigned long long int hash, const void* key, std::size_t len)  {
+  const unsigned char* str = (const unsigned char*)key;
+  if ( len > 0 )  {
+    for ( ; --len; ++str) hash = FNV1a_64::doByte(hash, *str);
+  }
+  return hash;
 }
 
 /// 16 bit hash function
 unsigned short dd4hep::detail::hash16(const void* key, std::size_t len)   {
-  unsigned int value = hash32(key, len);
-  return *(unsigned short*)&value;
+  unsigned short value = (unsigned short)hash32(key, len);
+  return value;
 }
 
 /// 8 bit hash function

@@ -5,7 +5,10 @@ import os
 
 from DDSim.Helper.ConfigHelper import ConfigHelper
 from g4units import mm
+import logging
 import ddsix as six
+
+logger = logging.getLogger(__name__)
 
 
 class Physics(ConfigHelper):
@@ -105,12 +108,12 @@ class Physics(ConfigHelper):
     self._decays = val
 
   @property
-  def list(self):
+  def list(self):  # noqa: A003
     """The name of the Geant4 Physics list."""
     return self._list
 
   @list.setter
-  def list(self, val):
+  def list(self, val):  # noqa: A003
     self._list = val
 
   def setupPhysics(self, kernel, name=None):
@@ -139,7 +142,11 @@ class Physics(ConfigHelper):
       rg.RangeCut = self.rangecut
 
     for func in self._userFunctions:
-      func(kernel)
+      try:
+        func(kernel)
+      except Exception as e:
+        logger.error("Exception in UserFunction: %r", e)
+        raise RuntimeError("Exception in UserFunction: %r" % e)
 
     return seq
 

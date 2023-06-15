@@ -46,18 +46,23 @@ namespace  {
 
 /// Split field name
 const string& DigiSegmentContext::name()  const  {
-  return this->field->name();
+  if ( this->field )  {
+    return this->field->name();
+  }
+  throw std::runtime_error("Invalid field name!");
 }
 
 /// Split field name
 const char* DigiSegmentContext::cname()  const  {
-  return this->field->name().c_str();
+  return this->field ? this->field->name().c_str() : "";
 }
 
 /// Full identifier (field + id)
-string DigiSegmentContext::identifier()  const  {
+std::string DigiSegmentContext::identifier(uint32_t id)  const   {
   std::stringstream str;
-  str << this->field->name() << "." << this->id;
+  if ( this->field )   {
+    str << this->field->name() << "." << id;
+  }
   return str.str();
 }
 
@@ -178,23 +183,32 @@ DigiSegmentationTool::split_context(const string& split_by)  const {
 }
 
 /// Create full set of detector segments which can be split according to the context
-map<dd4hep::VolumeID, pair<dd4hep::DetElement, dd4hep::VolumeID> >
-DigiSegmentationTool::split_segmentation(const string& split_by)  const
-{
+set<uint32_t> DigiSegmentationTool::split_segmentation(const string& split_by)  const  {
   map<VolumeID, pair<DetElement, VolumeID> > segmentation_splits;
   const auto& ids = this->detector.placement().volIDs();
   VolumeID    vid = this->iddescriptor.encode(ids);
   VolumeID    msk = this->iddescriptor.get_mask(ids);
+  const auto* fld = this->iddescriptor.field(split_by);
   const char* det = this->detector.name();
 
+  if ( !fld )   {
+    except("DigiSegmentationTool","Field discriminator %s does not exist in ID descriptor %s",
+	   split_by.c_str(), this->iddescriptor.name());
+  }
   ::scan_detector(*this, split_by, segmentation_splits, this->detector, vid, msk);
-  printout(INFO,"DigiSegmentationTool",
-	   "%-24s has %ld parallel entries when splitting by \"%s\"",
-	   det, segmentation_splits.size(), split_by.c_str());
   stringstream str;
-  for( auto id : segmentation_splits )
-    str << setw(16) << hex << setfill('0') << id.first << " ";
-  printout(INFO,"DigiSegmentationTool","%-24s --> Parallel Entries: %s",
-	   det, str.str().c_str());
-  return segmentation_splits;
+  set<uint32_t> splits;
+  for( const auto& id : segmentation_splits )  {
+    auto val = ((id.first&fld->mask())>>fld->offset());
+    splits.insert(val);
+  }
+  for( const auto& id : splits )  {
+    str << setw(16) << hex << setfill(' ') << id << " ";
+  }
+  printout(INFO,"DigiSegmentationTool",
+	   "%-24s has %ld entries and %ld parallel entries when splitting by \"%s\"",
+	   det, segmentation_splits.size(), splits.size(), split_by.c_str());
+  printout(INFO,"DigiSegmentationTool","%-24s --> %-12s ids: %s",
+	   "", split_by.c_str(), str.str().c_str());
+  return splits;
 }

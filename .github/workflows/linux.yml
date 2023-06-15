@@ -17,8 +17,8 @@ jobs:
               "dev3/x86_64-centos7-gcc11-opt",
               "dev4/x86_64-centos7-gcc11-opt"]
     steps:
-    - uses: actions/checkout@v2
-    - uses: cvmfs-contrib/github-action-cvmfs@v2
+    - uses: actions/checkout@v3
+    - uses: cvmfs-contrib/github-action-cvmfs@v3
     - uses: aidasoft/run-lcg-view@v3
       with:
         release-platform: ${{ matrix.LCG }}
@@ -41,11 +41,14 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_FLAGS="-fdiagnostics-color=always"  \
             -DCMAKE_CXX_STANDARD=17 ..
+          if [ "${{ matrix.LCG }}" = "dev3/x86_64-centos7-gcc11-opt" ]; then
+            cmake -DDD4HEP_HEPMC3_COMPRESSION_SUPPORT=ON ..
+          fi
           echo "::group::Compile"
           ninja install
           . ../bin/thisdd4hep.sh
           echo "::group::Test"
-          ctest --output-on-failure -j4
+          ctest --output-on-failure -j4 --output-junit TestResults_1.xml
           echo "::group::CMakeExamples"
           cd ../examples/
           mkdir build
@@ -57,7 +60,21 @@ jobs:
           echo "::group::CompileExamples"
           ninja install
           echo "::group::TestExamples"
-          ctest --output-on-failure -j2
+          ctest --output-on-failure -j2 --output-junit TestResults_2.xml
+    - name: Prepare Artifact Name
+      if: success() || failure()
+      run: |
+          artifact_name="${{ matrix.LCG }}"
+          artifact_name=$(echo -n "${artifact_name}" | sed -e 's@/@@g')
+          echo "ARTIFACT_NAME=${artifact_name}" >> $GITHUB_ENV
+    - name: Upload test results
+      if: success() || failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: Test Results ${{ env.ARTIFACT_NAME }}
+        path: |
+           /home/runner/work/DD4hep/DD4hep/build/TestResults_1.xml
+           /home/runner/work/DD4hep/DD4hep/examples/build/TestResults_2.xml
 
 
   key4hep:
@@ -68,8 +85,8 @@ jobs:
         view-path: ["/cvmfs/sw.hsf.org/key4hep/",
                     "/cvmfs/sw-nightlies.hsf.org/key4hep/"]
     steps:
-    - uses: actions/checkout@v2
-    - uses: cvmfs-contrib/github-action-cvmfs@v2
+    - uses: actions/checkout@v3
+    - uses: cvmfs-contrib/github-action-cvmfs@v3
     - uses: aidasoft/run-lcg-view@v3
       with:
         container: centos7
@@ -97,7 +114,7 @@ jobs:
           ninja install
           . ../bin/thisdd4hep.sh
           echo "::group::Test"
-          ctest --output-on-failure -j4
+          ctest --output-on-failure -j4 --output-junit TestResults_1.xml
           echo "::group::CMakeExamples"
           cd ../examples/
           mkdir build
@@ -109,7 +126,21 @@ jobs:
           echo "::group::CompileExamples"
           ninja install
           echo "::group::TestExamples"
-          ctest --output-on-failure -j2
+          ctest --output-on-failure -j2 --output-junit TestResults_2.xml
+    - name: Prepare Artifact Name
+      if: success() || failure()
+      run: |
+          artifact_name="${{ matrix.view-path }}"
+          artifact_name=$(echo -n "${artifact_name}" | sed -e 's@/@@g')
+          echo "ARTIFACT_NAME=${artifact_name}" >> $GITHUB_ENV
+    - name: Upload test results
+      if: success() || failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: Test Results ${{ env.ARTIFACT_NAME }}
+        path: |
+           /home/runner/work/DD4hep/DD4hep/build/TestResults_1.xml
+           /home/runner/work/DD4hep/DD4hep/examples/build/TestResults_2.xml
 
   non-shared:
     runs-on: ubuntu-latest
@@ -118,8 +149,8 @@ jobs:
       matrix:
         LCG: ["LCG_102/x86_64-centos7-gcc11-opt"]
     steps:
-    - uses: actions/checkout@v2
-    - uses: cvmfs-contrib/github-action-cvmfs@v2
+    - uses: actions/checkout@v3
+    - uses: cvmfs-contrib/github-action-cvmfs@v3
     - uses: aidasoft/run-lcg-view@v3
       with:
         release-platform: ${{ matrix.LCG }}
@@ -132,7 +163,7 @@ jobs:
             -DDD4HEP_USE_GEANT4=ON \
             -DBoost_NO_BOOST_CMAKE=ON \
             -DDD4HEP_USE_LCIO=ON \
-            -DDD4HEP_USE_EDM4HEP=ON \
+            -DDD4HEP_USE_EDM4HEP=OFF \
             -DDD4HEP_USE_TBB=ON \
             -DDD4HEP_USE_HEPMC3=ON \
             -DDD4HEP_BUILD_DEBUG=OFF \
@@ -153,9 +184,9 @@ jobs:
       matrix:
         LCG: ["dev3/x86_64-centos7-gcc11-opt"]
     steps:
-    - uses: actions/checkout@v2
-    - uses: cvmfs-contrib/github-action-cvmfs@v2
-    - uses: aidasoft/run-lcg-view@v1
+    - uses: actions/checkout@v3
+    - uses: cvmfs-contrib/github-action-cvmfs@v3
+    - uses: aidasoft/run-lcg-view@v3
       with:
         release-platform: ${{ matrix.LCG }}
         run: |
@@ -182,7 +213,7 @@ jobs:
           ninja install
           . ../bin/thisdd4hep.sh
           echo "::group::Test"
-          ctest --output-on-failure -j4
+          ctest --output-on-failure -j4 --output-junit TestResults_1.xml
           echo "::group::CMakeExamples"
           cd ../examples/
           mkdir build
@@ -194,4 +225,29 @@ jobs:
           echo "::group::CompileExamples"
           ninja install
           echo "::group::TestExamples"
-          ctest --output-on-failure -j2
+          ctest --output-on-failure -j2 --output-junit TestResults_2.xml
+    - name: Prepare Artifact Name
+      if: success() || failure()
+      run: |
+          artifact_name="${{ matrix.LCG }}"
+          artifact_name=$(echo -n "${artifact_name}" | sed -e 's@/@@g')
+          echo "ARTIFACT_NAME=${artifact_name}" >> $GITHUB_ENV
+    - name: Upload test results
+      if: success() || failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: Test Results ${{ env.ARTIFACT_NAME }}
+        path: |
+           /home/runner/work/DD4hep/DD4hep/build/TestResults_1.xml
+           /home/runner/work/DD4hep/DD4hep/examples/build/TestResults_2.xml
+
+  event_file:
+    if: github.repository_owner == 'aidasoft' || github.event_name == 'pull_request'
+    name: "Upload Event Payload"
+    runs-on: ubuntu-latest
+    steps:
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: Event File
+        path: ${{ github.event_path }}

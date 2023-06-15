@@ -21,10 +21,10 @@
 #include <CLHEP/Units/PhysicalConstants.h>
 
 // Geant4 include files
-#include <G4ParticleDefinition.hh>
 #include <G4Event.hh>
-#include <G4PrimaryVertex.hh>
+#include <G4ParticleDefinition.hh>
 #include <G4PrimaryParticle.hh>
+#include <G4PrimaryVertex.hh>
 
 // C/C++ include files
 #include <stdexcept>
@@ -76,7 +76,7 @@ dd4hep::sim::createPrimary(int particle_id,
   p->colorFlow[0] = 0;
   p->colorFlow[0] = 0;
   p->mass         = g4p->GetMass();
-  p->charge       = g4p->GetCharge();
+  p->charge       = int(3.0 * g4p->GetCharge());
   PropertyMask status(p->status);
   status.set(G4PARTICLE_GEN_STABLE);
   return p;
@@ -344,12 +344,14 @@ int dd4hep::sim::smearInteraction(const Geant4Action* caller,
 static G4PrimaryParticle* createG4Primary(const Geant4ParticleHandle p)  {
   G4PrimaryParticle* g4 = 0;
   if ( 0 != p->pdgID )   {
-    g4 = new G4PrimaryParticle(p->pdgID, p->psx, p->psy, p->psz, p.energy());
+    // For ions we use the pdgID of the definition, in case we had to zero the excitation level, see Geant4Particle.cpp
+    const int pdgID =  p->pdgID < 1000000000 ? p->pdgID : p.definition()->GetPDGEncoding();
+    g4 = new G4PrimaryParticle(pdgID, p->psx, p->psy, p->psz, p.energy());
   }
   else   {
     const G4ParticleDefinition* def = p.definition();
     g4 = new G4PrimaryParticle(def, p->psx, p->psy, p->psz, p.energy());
-    g4->SetCharge(p.charge());
+    g4->SetCharge(double(p.charge())/3.0);
   }
   // The particle is fully defined with the 4-vector set above, setting the mass isn't necessary, not
   // using the 4-vector, means the PDG mass is used, and the momentum is scaled if the mass is set here
@@ -383,8 +385,8 @@ getRelevant(set<int>& visited,
     double me = en > std::numeric_limits<double>::epsilon() ? p->mass / en : 0.0;
     //  fix by S.Morozov for real != 0
     double proper_time = fabs(dp->time-p->time) * me;
-    double proper_time_Precision = pow(10.,-DBL_DIG)*me*fmax(fabs(p->time),fabs(dp->time));
-    bool isProperTimeZero = (proper_time <= proper_time_Precision);
+    double proper_time_Precision = pow(10.,-DBL_DIG)*fabs(me)*fmax(fabs(p->time),fabs(dp->time));
+    bool isProperTimeZero = (fabs(proper_time) <= fabs(proper_time_Precision));
 
     // -- remove original if ---
     bool rejectParticle = not p.definition()                    // completely unknown to geant4

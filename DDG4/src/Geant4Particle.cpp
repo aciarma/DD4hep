@@ -12,17 +12,20 @@
 //==========================================================================
 
 // Framework include files
-#include <DD4hep/Printout.h>
-#include <DD4hep/Primitives.h>
 #include <DD4hep/InstanceCount.h>
+#include <DD4hep/Primitives.h>
+#include <DD4hep/Printout.h>
 #include <DDG4/Geant4Particle.h>
-#include <TDatabasePDG.h>
-#include <TParticlePDG.h>
-#include <G4ParticleTable.hh>
-#include <G4ParticleDefinition.hh>
-#include <G4VProcess.hh>
+
 #include <G4ChargedGeantino.hh>
 #include <G4Geantino.hh>
+#include <G4IonTable.hh>
+#include <G4ParticleDefinition.hh>
+#include <G4ParticleTable.hh>
+#include <G4VProcess.hh>
+
+#include <TDatabasePDG.h>
+#include <TParticlePDG.h>
 
 #include <sstream>
 #include <iostream>
@@ -114,6 +117,32 @@ void Geant4Particle::removeDaughter(int id_daughter)  {
 const G4ParticleDefinition* Geant4ParticleHandle::definition() const   {
   G4ParticleTable*      tab = G4ParticleTable::GetParticleTable();
   G4ParticleDefinition* def = tab->FindParticle(particle->pdgID);
+  if( 1000000000 < particle->pdgID) {
+    // creating ions here
+    // ion encoding is 10 L ZZZ AAA I
+    int id = particle->pdgID - 1000000000;  // leading 10 is just identifier
+    const int L = id / 10000000; id %= 10000000;  // strange-quark content
+    const int Z = id / 10000;    id %= 10000;
+    const int A = id / 10;       id %= 10;
+    const int lvl = id;
+    G4IonTable* tab_ion = G4IonTable::GetIonTable();
+    // Have to look for existing Ions, excited or not
+    G4ParticleDefinition* def_ion = tab_ion->FindIon(Z, A, L, lvl);
+    if(def_ion) {
+      //We found an existing Ion, we are good to go
+      printout(VERBOSE,"Geant4Particle","+++ Returning ion with PDG %10d", def_ion->GetPDGEncoding());
+      return def_ion;
+    } else if(lvl == 0) {
+      // GetIon creates the Ion if it does not exist, if this does not work something is seriously wrong
+      printout(VERBOSE,"Geant4Particle","+++ Creating ion with PDG %10d", particle->pdgID);
+      return tab_ion->GetIon(Z, A, L, 0.0);
+    }
+    //Cannot use GetIon with lvl > 0, must give energy, but we don't know where to get energy from
+    printout(WARNING,"Geant4Particle","+++ Cannot find excited ion with PDG %10d, setting excitation level to zero",
+             particle->pdgID);
+    return tab_ion->GetIon(Z, A, L, /* E= */ 0.0);
+  } // finished with ions
+
   if ( 0 == def && 0 == particle->pdgID )   {
     if ( 0 == particle->charge )
       return G4Geantino::Definition();

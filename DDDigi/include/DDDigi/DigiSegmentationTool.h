@@ -30,8 +30,6 @@ namespace dd4hep {
 
     /// Segmentation split context
     /**
-     *  
-     *  
      *
      *  \author  M.Frank
      *  \version 1.0
@@ -39,40 +37,49 @@ namespace dd4hep {
      */
     class DigiSegmentContext  {
     public:
-      DetElement             detector   { };
-      IDDescriptor           idspec     { };
-      const BitFieldElement* field      { nullptr };
-      uint64_t               cell_mask  { ~0x0UL };
-      uint64_t               det_mask   { 0UL };
-      uint64_t               split_mask { 0UL };
-      int32_t                offset     { 0 };
-      int32_t                width      { 0 };
-      int32_t                max_split  { 0 };
-      uint32_t               id         { 0 };
+      using field_t = const BitFieldElement;
+      DetElement   detector   { };
+      IDDescriptor idspec     { };
+      field_t*     field      { nullptr };
+      uint64_t     cell_mask  { ~0x0UL };
+      uint64_t     det_mask   { 0UL };
+      uint64_t     split_mask { 0UL };
+      int32_t      offset     { 0 };
+      int32_t      width      { 0 };
+      int32_t      max_split  { 0 };
 
     public:
+      /// Default constructor
+      DigiSegmentContext() = default;
+      /// Default move constructor
+      DigiSegmentContext(DigiSegmentContext&& copy) = default;
+      /// Default copy constructor
+      DigiSegmentContext(const DigiSegmentContext& copy) = default;
+      /// Default destructor
+      virtual ~DigiSegmentContext() = default;
+      /// Default move assignment
+      DigiSegmentContext& operator=(DigiSegmentContext&& copy) = default;
+      /// Default copy assignment
+      DigiSegmentContext& operator=(const DigiSegmentContext& copy) = default;
+
       /// Split field name
       const std::string& name()  const;
       /// Split field name
       const char* cname()  const;
       /// Full identifier (field + id)
-      std::string identifier()  const;
+      std::string identifier(uint32_t id)  const;
       
       /// Get the identifier of the cell to be split
       uint32_t split_id(uint64_t cell)  const  {
-	return int( (cell & this->split_mask) >> this->offset );
+	return uint32_t( (cell & this->split_mask) >> this->offset );
       }
       /// The CELL ID part of the identifier
       uint64_t cell_id(uint64_t cell)  const  {
-	return ( (cell & this->cell_mask) >> (this->offset + width) );
+	return uint64_t( uint64_t(cell & this->cell_mask) >> (this->offset + width) );
       }
       /// The identifier of the parent detector
       uint64_t detector_id(uint64_t cell)  const  {
-	return (cell & this->det_mask);
-      }
-      /// Check a given cell id if it matches this selection
-      bool matches(uint64_t cell)  const  {
-	return this->split_id(cell) == this->id;
+	return uint64_t(cell & this->det_mask);
       }
     };
 
@@ -116,8 +123,7 @@ namespace dd4hep {
       DigiSegmentContext split_context(const std::string& split_by)  const;
 
       /// Create full set of detector segments which can be split according to the context
-      std::map<VolumeID, std::pair<DetElement, VolumeID> > 
-	split_segmentation(const std::string& split_by)  const;
+      std::set<uint32_t> split_segmentation(const std::string& split_by)  const;
     };
   }    // End namespace digi
 }      // End namespace dd4hep

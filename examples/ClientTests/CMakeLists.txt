@@ -8,7 +8,7 @@
 # For the list of contributors see $DD4hepINSTALL/doc/CREDITS.
 #
 #==========================================================================
-cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 IF(NOT TARGET DD4hep::DDCore)
   find_package ( DD4hep REQUIRED )
@@ -70,7 +70,7 @@ dd4hep_add_test_reg( ClientTests_volume_scanner
   COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
   EXEC_ARGS  geoPluginRun -input ${ClientTestsEx_INSTALL}/compact/MiniTel.xml
   -destroy -plugin DD4hep_PlacedVolumeScannerTest -detector /world
-  REGEX_PASS "Visited a total of 31 placed volumes"
+  REGEX_PASS "Visited a total of 51 placed volumes"
   REGEX_FAIL "Exception"
   REGEX_FAIL "FAILED"
   )
@@ -322,7 +322,8 @@ endforeach()
 # IronCylinder has no segmentation!
 # MaterialTester no geometry
 # SectorBarrelCalorimeter is bad
-foreach (test Assemblies BoxTrafos CaloEndcapReflection LheD_tracker MagnetFields MiniTel SiliconBlock 
+foreach (test Assemblies BoxTrafos CaloEndcapReflection
+	 LheD_tracker MagnetFields MiniTel SiliconBlock 
 	 ParamVolume1D ParamVolume2D ParamVolume3D
          NestedSimple NestedDetectors MultiCollections )
   #
@@ -336,8 +337,9 @@ foreach (test Assemblies BoxTrafos CaloEndcapReflection LheD_tracker MagnetField
   if (DD4HEP_USE_GEANT4)
     dd4hep_add_test_reg( ClientTests_g4material_scan_${test}_LONGTEST
       COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
-      EXEC_ARGS  ${Python_EXECUTABLE} ${DD4hep_ROOT}/bin/g4MaterialScan --compact=file:${ClientTestsEx_INSTALL}/compact/${test}.xml
-                        "--position=0,0,0" "--direction=0,1,0"
+      EXEC_ARGS  ${Python_EXECUTABLE} ${DD4hep_ROOT}/bin/g4MaterialScan
+      		  --compact=file:${ClientTestsEx_INSTALL}/compact/${test}.xml
+                 "--position=0,0,0" "--direction=0,1,0"
       REGEX_PASS " Terminate Geant4 and delete associated actions." )
   endif(DD4HEP_USE_GEANT4)
 endforeach()
@@ -357,17 +359,79 @@ foreach (test BoxTrafos CaloEndcapReflection IronCylinder MiniTel SiliconBlock N
   # ROOT Geometry checks
   dd4hep_add_test_reg( ClientTests_check_geometry_${test}_LONGTEST
     COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
-    EXEC_ARGS  ${Python_EXECUTABLE} ${DD4hep_ROOT}/bin/checkGeometry --compact=file:${ClientTestsEx_INSTALL}/compact/${test}.xml
-                      --full=true --ntracks=10
+    EXEC_ARGS  ${Python_EXECUTABLE} ${DD4hep_ROOT}/bin/checkGeometry
+    	        --compact=file:${ClientTestsEx_INSTALL}/compact/${test}.xml
+                --full=true --ntracks=10
     REGEX_PASS " Execution finished..." )
   #
   # ROOT Geometry overlap checks
   dd4hep_add_test_reg( ClientTests_check_overlaps_${test}_LONGTEST
     COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
-    EXEC_ARGS  ${Python_EXECUTABLE} ${DD4hep_ROOT}/bin/checkOverlaps --compact=file:${ClientTestsEx_INSTALL}/compact/${test}.xml
+    EXEC_ARGS  ${Python_EXECUTABLE} ${DD4hep_ROOT}/bin/checkOverlaps
+    	        --compact=file:${ClientTestsEx_INSTALL}/compact/${test}.xml
                       --tolerance=0.1
     REGEX_PASS " Execution finished..." )
 endforeach()
+#
+#
+# Checksum test of the Minitel3 sub-detector
+dd4hep_add_test_reg( MiniTel_check_checksum_Minitel3
+  COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_CLICSiD.sh"
+  EXEC_ARGS  geoPluginRun -input ${ClientTestsEx_INSTALL}/compact/MiniTelGenerate.xml
+  	      -plugin DD4hepDetectorChecksum -readout -detector Minitel3
+  REGEX_PASS "Combined hash code                      96566298cb469f79  \\(54 sub-codes\\)"
+  REGEX_FAIL "Exception;EXCEPTION;ERROR"
+)
+#
+# Checksum test of the full detector
+dd4hep_add_test_reg( MiniTel_check_checksum_full
+  COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_CLICSiD.sh"
+  EXEC_ARGS  geoPluginRun -input ${ClientTestsEx_INSTALL}/compact/MiniTelGenerate.xml
+  	      -plugin DD4hepDetectorChecksum -readout
+  REGEX_PASS "Combined hash code                      97ecf7772fe1d462  \\(207 sub-codes\\)"
+  REGEX_FAIL "Exception;EXCEPTION;ERROR"
+)
+#
+# Test the sequential processing of two xml files
+dd4hep_add_test_reg( minitel_config_plugins_include_command_line
+  COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
+  EXEC_ARGS  geoPluginRun -input ${ClientTestsEx_INSTALL}/compact/MiniTel.xml 
+       	     		  -input ${ClientTestsEx_INSTALL}/compact/ExamplePlugins.xml
+  REGEX_PASS "\\+\\+\\+ Tested 5 numeric constants for expression evaluation"
+  REGEX_FAIL "Exception;EXCEPTION;ERROR"
+)
+#
+# Test the sequential processing of two xml files
+dd4hep_add_test_reg( minitel_config_plugins_include_command_xml
+  COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
+  EXEC_ARGS  geoPluginRun -input ${ClientTestsEx_INSTALL}/compact/IncludePlugins.xml 
+  REGEX_PASS "Tested 5 numeric constants for expression evaluation"
+  REGEX_FAIL "Exception;EXCEPTION;ERROR"
+)
+#
+# Test setting properties to the world volume and a single sub-detector
+dd4hep_add_test_reg( minitel_config_world_volume
+  COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
+  EXEC_ARGS  geoPluginRun -input ${ClientTestsEx_INSTALL}/compact/WorldSettings.xml 
+  REGEX_PASS "\\+\\+ Applied 5 settings to MyLHCBdetector5"
+  REGEX_FAIL "Exception;EXCEPTION;ERROR"
+)
+#
+# Test creation of the world volume with user specified material
+dd4hep_add_test_reg( minitel_config_world_material
+  COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
+  EXEC_ARGS  geoPluginRun -input ${ClientTestsEx_INSTALL}/compact/WorldMaterial.xml -print INFO -destroy -load
+  REGEX_PASS "\\+\\+ Created world volume 'world_volume' as TGeoBBox \\(50.00, 50.00 50.00 \\[cm\\]\\) material:Steel235"
+  REGEX_FAIL "Exception;EXCEPTION;ERROR"
+)
+#
+# Test setting properties to the world volume and a single sub-detector
+dd4hep_add_test_reg( minitel_config_world
+  COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
+  EXEC_ARGS  geoPluginRun -input ${ClientTestsEx_INSTALL}/compact/WorldSettings.xml 
+  REGEX_PASS "\\+\\+ Applied 3 settings to /world"
+  REGEX_FAIL "Exception;EXCEPTION;ERROR"
+)
 #
 #      EXEC_ARGS  test_with_root.sh ${script}
 #
@@ -377,14 +441,15 @@ if (DD4HEP_USE_GEANT4)
   dd4hep_add_test_reg( ClientTests_sim_Check_Temp_Pressure_Air
     COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
     EXEC_ARGS  ${Python_EXECUTABLE} ${ClientTestsEx_INSTALL}/scripts/Check_Air.py
-    -geometry  ${ClientTestsEx_INSTALL}/compact/Check_Air.xml batch
+    	              -geometry  ${ClientTestsEx_INSTALL}/compact/Check_Air.xml batch
     REGEX_PASS "Imean:  85.538 eV   temperature: 333.33 K  pressure:   2.22 atm"
     REGEX_FAIL "Exception;EXCEPTION;ERROR;Error;FATAL" )
   #
   # Geant4 test with gdml input file (LHCb:FT)
   dd4hep_add_test_reg( ClientTests_g4_gdml_detector
     COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
-    EXEC_ARGS  ${Python_EXECUTABLE} ${DD4hep_ROOT}/bin/g4GeometryScan --compact=${ClientTestsEx_INSTALL}/compact/GdmlDetector.xml
+    EXEC_ARGS  ${Python_EXECUTABLE} ${DD4hep_ROOT}/bin/g4GeometryScan
+    	              --compact=${ClientTestsEx_INSTALL}/compact/GdmlDetector.xml
                       --position=200,200,-2000 --direction=0,0,1
     REGEX_PASS "   122   2777.0000  5200.000  "
     REGEX_FAIL "Exception;EXCEPTION;ERROR;Error;FATAL" )
@@ -392,7 +457,8 @@ if (DD4HEP_USE_GEANT4)
   # Geant4 test with gdml input file (LHCb:MT)
   dd4hep_add_test_reg( ClientTests_g4_gdml_MT
     COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
-    EXEC_ARGS  ${Python_EXECUTABLE} ${DD4hep_ROOT}/bin/g4GeometryScan --compact=${ClientTestsEx_INSTALL}/compact/MT.xml
+    EXEC_ARGS  ${Python_EXECUTABLE} ${DD4hep_ROOT}/bin/g4GeometryScan
+    	              --compact=${ClientTestsEx_INSTALL}/compact/MT.xml
                       --position=200,200,7900 --direction=0,0,1
     REGEX_PASS "    15   2777.0000  4210.000   "
     REGEX_FAIL "Exception;EXCEPTION;ERROR;Error;FATAL" )
@@ -412,11 +478,16 @@ if (DD4HEP_USE_GEANT4)
     REGEX_FAIL "Exception;EXCEPTION;ERROR;Error" )
   #
   # Test of an example user analysis creating an N-tuple instead of an output file with events
+  # Note: Exception: *** G4Exception : PART5107
+  #           issued by : G4IonTable::FindIon()
+  #           Isomer level 9 may be ambiguous.
+  #       *** This is just a warning message. ***
+  # This is NOT an error!
   dd4hep_add_test_reg( ClientTests_sim_UserAnalysis
     COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
     EXEC_ARGS  ${Python_EXECUTABLE} ${ClientTestsEx_INSTALL}/scripts/MiniTelEnergyDeposits.py batch
     REGEX_PASS "Entries :      200 "
-    REGEX_FAIL "Exception;EXCEPTION;ERROR;Error" )
+    REGEX_FAIL "EXCEPTION;ERROR;Error" )
   #
   # Test of an example user analysis creating an N-tuple instead of an output file with events
   dd4hep_add_test_reg( ClientTests_sim_TrackingRegion
@@ -429,7 +500,7 @@ if (DD4HEP_USE_GEANT4)
   foreach(script Assemblies LheD_tracker MiniTel MiniTel_hepmc NestedDetectors )
     dd4hep_add_test_reg( ClientTests_sim_${script}
       COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
-      EXEC_ARGS  ${Python_EXECUTABLE} ${ClientTestsEx_INSTALL}/scripts/${script}.py batch
+      EXEC_ARGS  ${Python_EXECUTABLE} ${ClientTestsEx_INSTALL}/scripts/${script}.py -batch
       REGEX_PASS NONE
       REGEX_FAIL "Exception;EXCEPTION;ERROR;Error" )
   endforeach(script)
@@ -439,10 +510,28 @@ if (DD4HEP_USE_GEANT4)
     dd4hep_add_test_reg( ClientTests_sim_${script}
       COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
       EXEC_ARGS  ${Python_EXECUTABLE} ${ClientTestsEx_INSTALL}/scripts/MultiCollections.py 
-                        -compact ${ClientTestsEx_INSTALL}/compact/${script}.xml -batch
+                 -compact ${ClientTestsEx_INSTALL}/compact/${script}.xml -batch
       REGEX_PASS NONE
       REGEX_FAIL "Exception;EXCEPTION;ERROR;Error" )
   endforeach(script)
+  #
+  # Test setting properties to a single sub-detector
+  dd4hep_add_test_reg( minitel_config_region_subdet_geant4
+    COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
+    EXEC_ARGS  ${Python_EXECUTABLE} ${ClientTestsEx_INSTALL}/scripts/MiniTel.py
+    	       -batch -debug -events 1 -geometry /examples/ClientTests/compact/WorldSettings.xml
+    REGEX_PASS "\\+ Apply REGION settings: minitel_region_5         to volume MyLHCBdetector5."
+    REGEX_FAIL "EXCEPTION; Exception;ERROR"
+  )
+  #
+  # Test setting properties to the world volume
+  dd4hep_add_test_reg( minitel_config_region_world_geant4
+    COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
+    EXEC_ARGS  ${Python_EXECUTABLE} ${ClientTestsEx_INSTALL}/scripts/MiniTel.py
+    	       -batch -debug -events 1 -geometry /examples/ClientTests/compact/WorldSettings.xml
+    REGEX_PASS "Volume world_volume Region: DefaultRegionForTheWorld. Apply user limits from world_region"
+    REGEX_FAIL "EXCEPTION; Exception;ERROR"
+  )
   #
   if(Geant4_VERSION VERSION_LESS 10.7)
     dd4hep_print("|++> Geant4 fast simulation not supported for Geant4 ${Geant4_VERSION}")
@@ -455,7 +544,7 @@ if (DD4HEP_USE_GEANT4)
         EXEC_ARGS  ${Python_EXECUTABLE} ${ClientTestsEx_INSTALL}/scripts/${script}.py -batch -events 2
 		   -geometry ${ClientTestsEx_INSTALL}/compact/SiliconBlock.xml -batch -events 2
         REGEX_PASS "Event 1 Begin event action. Access event related information"
-        REGEX_FAIL "Exception;EXCEPTION;ERROR;Error" )
+        REGEX_FAIL "EXCEPTION; Exception;ERROR;Error" )
     endforeach(script)
   endif()
   #
@@ -465,7 +554,19 @@ if (DD4HEP_USE_GEANT4)
       EXEC_ARGS  ${Python_EXECUTABLE} ${ClientTestsEx_INSTALL}/scripts/ParamVolume.py
       		 -geometry ${script}.xml -batch -events 2
       REGEX_PASS "Event 1 Begin event action. Access event related information"
-      REGEX_FAIL "Exception;EXCEPTION;ERROR;Error" )
+      REGEX_FAIL "EXCEPTION; Exception;ERROR;Error" )
   endforeach(script)
   #
+  #
+  # Test EDM4HEP output module
+  if (DD4HEP_USE_EDM4HEP)
+    # Test EDM4HEP write (needs to be expanded)
+    dd4hep_add_test_reg(ClientTests_sim_MinitTel_edm4hep_write
+      COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_ClientTests.sh"
+      EXEC_ARGS  ${Python_EXECUTABLE} ${ClientTestsEx_INSTALL}/scripts/MiniTelGenerate.py
+                 -batch -events 5 -output MiniTel_ddg4_edm4hep.edm4hep.root
+      REGEX_PASS "\\+\\+\\+ Finished run 0 after 5 events \\(5 events in total\\)"
+      REGEX_FAIL "Error;ERROR; Exception"
+    )
+  endif()
 endif(DD4HEP_USE_GEANT4)

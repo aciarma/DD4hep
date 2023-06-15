@@ -10,7 +10,6 @@
 # ==========================================================================
 from __future__ import absolute_import, unicode_literals
 import os
-import sys
 import DDG4
 #
 """
@@ -26,19 +25,20 @@ import DDG4
 
 def run():
   from MiniTelSetup import Setup
+  args = DDG4.CommandLine()
   m = Setup()
-  if len(sys.argv) >= 2 and sys.argv[1] == "batch":
+  if args.batch:
     DDG4.setPrintLevel(DDG4.OutputLevel.WARNING)
     m.kernel.UI = ''
   m.configure()
   m.defineOutput()
   fname = os.environ['DD4hepExamplesINSTALL'] + '/examples/DDG4/data/Muons10GeV.HEPEvt'
-  m.setupInput("Geant4EventReaderHepEvtShort|" + fname)
+  m.setupInput('Geant4EventReaderHepEvtShort|' + fname)
   m.setupGenerator()
   m.setupPhysics(model='FTFP_BERT')
   m.phys.decays = True
   m.run(num_events=1)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   run()

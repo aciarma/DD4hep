@@ -8,7 +8,7 @@
 # For the list of contributors see $DD4hepINSTALL/doc/CREDITS.
 #
 #==========================================================================
-cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 IF(NOT TARGET DD4hep::DDCore)
   find_package ( DD4hep REQUIRED )
@@ -128,6 +128,22 @@ dd4hep_add_test_reg( CLICSiD_GDML_import_LONGTEST
   REGEX_FAIL "Exception;EXCEPTION;ERROR" )
 #
 endif()
+#
+# Checksum test of the EcalBarrel sub-detector
+dd4hep_add_test_reg( CLICSiD_check_checksum_EcalBarrel
+  COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_CLICSiD.sh"
+  EXEC_ARGS  geoPluginRun -input ${DD4hep_ROOT}/DDDetectors/compact/SiD.xml -plugin DD4hepDetectorChecksum -readout -detector EcalBarrel
+  REGEX_PASS "Combined hash code                      91ac921728a25197  \\(10375 sub-codes\\)"
+  REGEX_FAIL "Exception;EXCEPTION;ERROR"
+)
+#
+# Checksum test of the full detector
+dd4hep_add_test_reg( CLICSiD_check_checksum_full
+  COMMAND    "${CMAKE_INSTALL_PREFIX}/bin/run_test_CLICSiD.sh"
+  EXEC_ARGS  geoPluginRun -input ${DD4hep_ROOT}/DDDetectors/compact/SiD.xml -plugin DD4hepDetectorChecksum -readout 
+  REGEX_PASS "Combined hash code                      15a55d11308fce12  \\(3395674 sub-codes\\)"
+  REGEX_FAIL "Exception;EXCEPTION;ERROR"
+)
 #
 #---Geant4 Testing-----------------------------------------------------------------
 #

@@ -12,72 +12,66 @@ from __future__ import absolute_import
 import os
 import dddigi
 import logging
-from g4units import ns
+from dd4hep import units
+from dddigi import DEBUG, INFO, WARNING, ERROR  # noqa: F401
 
 logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-"""
-  00C7A3C1 SiVertexEndcapHits               : map<long long, EnergyDeposit>
-  00D16F45 EcalBarrelHits                   : map<long long, EnergyDeposit>
-  0D3C3803 MCParticles                      :
-  2E9082A9 HcalPlugHits                     : map<long long, EnergyDeposit>
-  3A89E02E HcalEndcapHits                   : map<long long, EnergyDeposit>
-  569C1C49 HcalBarrelHits                   : map<long long, EnergyDeposit>
-  62AD0218 EcalEndcapHits                   : map<long long, EnergyDeposit>
-  7FBC6131 SiTrackerBarrelHits              : map<long long, EnergyDeposit>
-  A239CB2E LumiCalHits                      : map<long long, EnergyDeposit>
-  B5CD88D8 MuonBarrelHits                   : map<long long, EnergyDeposit>
-  BDB9AD3E SiVertexBarrelHits               : map<long long, EnergyDeposit>
-  C84DE2C2 MuonEndcapHits                   : map<long long, EnergyDeposit>
-  CB57C6D0 SiTrackerForwardHits             : map<long long, EnergyDeposit>
-  D108063E BeamCalHits                      : map<long long, EnergyDeposit>
-  F4183035 SiTrackerEndcapHits              : map<long long, EnergyDeposit>
-"""
-
-attenuation = {'SiVertexEndcapHits': 50 * ns,
-               'SiVertexBarrelHits': 50 * ns,
-               'SiTrackerForwardHits': 50 * ns,
-               'SiTrackerEndcapHits': 50 * ns,
-               'SiTrackerBarrelHits': 50 * ns,
-               'HcalPlugHits': 50 * ns,
-               'HcalEndcapHits': 50 * ns,
-               'HcalBarrelHits': 50 * ns,
-               'EcalEndcapHits': 50 * ns,
-               'MuonEndcapHits': 50 * ns,
-               'MuonBarrelHits': 50 * ns,
-               'BeamCalHits': 50 * ns,
-               'LumiCalHits': 50 * ns,
-           }
+attenuation = {'Minitel1Hits': 50 * units.ns,
+               'Minitel2Hits': 50 * units.ns,
+               'Minitel3Hits': 50 * units.ns,
+}
 
 
+# ==========================================================================================================
 class Test(dddigi.Digitize):
 
-  def __init__(self, geometry=None):
+  def __init__(self, geometry=None, process_data=True):
     global attenuation
     dddigi.Digitize.__init__(self, dddigi.Kernel())
     dddigi.setPrintFormat(str('%-32s %5s %s'))
-    dddigi.setPrintLevel(dddigi.OutputLevel.INFO)
+    dddigi.setPrintLevel(INFO)
     self.kernel().printProperties()
     self.geometry = geometry
     self.input = None
     self.main_sequencer()
     self.attenuation = attenuation
-    self.inputs = [
-        'CLICSiD_2022-10-05_13-21.root',
-        'CLICSiD_2022-10-05_13-52.root',
-        'CLICSiD_2022-10-05_14-16.root',
-        'CLICSiD_2022-10-05_14-40.root']
     self.used_inputs = []
+    self.inputs = ['MiniTel.run00000000.root',
+                   'MiniTel.run00000001.root',
+                   'MiniTel.run00000002.root',
+                   'MiniTel.run00000003.root',
+                   'MiniTel.run00000004.root',
+                   'MiniTel.run00000005.root',
+                   'MiniTel.run00000006.root',
+                   'MiniTel.run00000007.root',
+                   'MiniTel.run00000008.root']
+    if not os.path.exists(self.inputs[0]):
+      if os.path.exists('DDDigi'):
+        os.chdir('DDDigi')
+    if process_data and not os.path.exists(self.inputs[0]):
+      # This will cause: FileNotFoundError: [Errno 2] No such file or directory: 'xxxxx'
+      open(self.inputs[0])
 
   def segment_action(self, nam, **options):
     obj = dddigi.Interface.createSegmentAction(self.kernel(), str(nam))
     return obj
 
-  def load_geo(self):
-    fname = "file:" + os.environ['DD4hepINSTALL'] + "/DDDetectors/compact/SiD.xml"
+  def load_geo(self, volume_manager=None):
+    fname = 'file:' + os.environ['DD4hepExamplesINSTALL'] + '/examples/ClientTests/compact/MiniTelGenerate.xml'
     self.kernel().loadGeometry(str(fname))
     self.printDetectors()
+    if volume_manager:
+      vm = self.description.volumeManager()
+      if not vm.isValid():
+        self.description.processXMLString(str("""<plugins>
+          <plugin name="DD4hep_VolumeManager"/>
+        </plugins>"""))
+      self.volumeManager = self.description.volumeManager()
+      if self.volumeManager.isValid():
+        self.info('+++ Successfully created DD4hep VolumeManager')
+    return self
 
   def data_containers(self):
     return list(self.attenuation.keys())
@@ -102,7 +96,7 @@ class Test(dddigi.Digitize):
       if o is None:
         self.error('FAILED  Failed to create object')
 
-  def declare_input(self, name, input, parallel=True):
+  def declare_input(self, name, input, parallel=True):  # noqa: A002
     if not self.input:
       self.input = dddigi.Synchronize(self.kernel(), 'DigiParallelActionSequence/READER')
       self.input.parallel = True
@@ -110,15 +104,74 @@ class Test(dddigi.Digitize):
   def next_input(self):
     if len(self.used_inputs) == len(self.inputs):
       self.used_inputs = []
-    next = self.inputs[len(self.used_inputs)]
-    self.used_inputs.append(next)
-    self.info('Prepariing next input file: ' + str(next))
-    return next
+    next_source = self.inputs[len(self.used_inputs)]
+    self.used_inputs.append(next_source)
+    self.info('Prepariing next input file: ' + str(next_source))
+    return next_source
 
   def run_checked(self, num_events=5, num_threads=5, parallel=3):
-    result = "FAILED"
+    result = 'FAILED'
+    if self.num_events:
+      num_events = int(self.num_events)
+    if self.num_threads:
+      num_threads = int(self.num_threads)
+    if self.events_parallel:
+      parallel = int(self.events_parallel)
     evt_done = self.run(num_events=num_events, num_threads=num_threads, parallel=parallel)
     if evt_done == num_events:
-        result = "PASSED"
-    self.always('%s Test finished after processing %d events.' % (result, evt_done,))
-    self.always('Test done. Exiting')
+        result = 'PASSED'
+    self.always('%s Test finished after processing %d events. [%d parallel threads, %d parallel events]'
+                % (result, evt_done, num_threads, parallel, ))
+    self.kernel().terminate()
+    return evt_done
+
+
+# ==========================================================================================================
+def test_setup_1(digi, print_level=WARNING, parallel=True):
+  """
+      Create default setup for tests. Simply too bad to repeat the same lines over and over again.
+
+      \author  M.Frank
+      \version 1.0
+  """
+  # ========================================================================================================
+  digi.info('Created SIGNAL input')
+  input = digi.input_action('DigiParallelActionSequence/READER')  # noqa: A001
+  input.adopt_action('DigiDDG4ROOT/SignalReader',
+                     mask=0xCBAA,
+                     input=[digi.next_input()],
+                     OutputLevel=print_level, keep_raw=False)
+  # ========================================================================================================
+  digi.info('Creating collision overlay....')
+  # ========================================================================================================
+  overlay = input.adopt_action('DigiSequentialActionSequence/Overlay-1')
+  overlay.adopt_action('DigiDDG4ROOT/Read-1',
+                       mask=0xCBEE,
+                       input=[digi.next_input()],
+                       OutputLevel=print_level,
+                       keep_raw=False)
+  digi.info('Created input.overlay-1')
+  # ========================================================================================================
+  event = digi.event_action('DigiSequentialActionSequence/EventAction')
+  combine = event.adopt_action('DigiContainerCombine/Combine',
+                               OutputLevel=print_level,
+                               parallel=parallel,
+                               input_masks=[0xCBAA, 0xCBEE],
+                               output_mask=0xAAA0,
+                               output_segment='deposits')
+  combine.erase_combined = True
+  proc = event.adopt_action('DigiContainerSequenceAction/HitP1',
+                            parallel=parallel,
+                            input_mask=0xAAA0,
+                            input_segment='deposits',
+                            output_mask=0xEEE5,
+                            output_segment='deposits')
+  combine = digi.create_action('DigiDepositWeightedPosition/WeightedPosition', OutputLevel=print_level)
+  proc.adopt_container_processor(combine, digi.containers())
+  conts = [c for c in digi.containers()]
+  event.adopt_action('DigiContainerDrop/Drop',
+                     containers=conts,
+                     input_segment='deposits',
+                     input_masks=[0xAAA0])
+
+  return event

@@ -15,6 +15,7 @@
 
 /// Framework include files
 #include "DDG4/Geant4Data.h"
+#include "DDG4/Geant4Particle.h"
 
 namespace SomeExperiment {
 
@@ -47,14 +48,30 @@ namespace SomeExperiment {
     /// Default constructor
     MyTrackerHit() = default;
     /// Initializing constructor
-    MyTrackerHit(int track_id, int pdg_id, double deposit, double time_stamp)
-      : dd4hep::sim::Geant4Tracker::Hit(track_id,pdg_id,deposit,time_stamp) {}
+    MyTrackerHit(int track_id, int pdg_id, double deposit, double time_stamp, double len,
+		 const dd4hep::Position& pos, const dd4hep::Direction& mom)
+      : dd4hep::sim::Geant4Tracker::Hit(track_id,pdg_id,deposit,time_stamp, len, pos, mom) {}
     /// Default destructor
     virtual ~MyTrackerHit() = default;
     /// Assignment operator
     void copyFrom(const MyTrackerHit& c);
   };
 
+  /// User data to be attached to the output MC particle
+  /**
+   *  \author  M.Frank
+   *  \version 1.0
+   *  \ingroup DD4HEP_SIMULATION
+   */
+  class ParticleUserData : public dd4hep::sim::ParticleExtension   {
+  public:
+    /// Some data item to be attached to the Geant4 particle object
+    double absolute_momentum { 0e0 };
+
+  public:
+    using dd4hep::sim::ParticleExtension::ParticleExtension;
+  };
+  
   /// Helper to dump data file
   /**
    *  Usage:  
@@ -83,7 +100,9 @@ namespace SomeExperiment {
 #pragma link C++ namespace dd4hep::sim;
 #pragma link C++ namespace SomeExperiment;
 #pragma link C++ class     SomeExperiment::MyTrackerHit+;
+#pragma link C++ class     SomeExperiment::ParticleUserData+;
 #pragma link C++ class     SomeExperiment::Dump;
+
 #endif
 
 #endif // EXAMPLES_DDG4_MYSENSDET_SRC_MYTRACKERHIT_H

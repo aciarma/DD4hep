@@ -41,8 +41,9 @@ namespace dd4hep {
     class BitFieldCoder;
     class BitFieldElement;
     /// Useful typedefs to differentiate cell IDs and volume IDs
-    typedef long long int CellID;
-    typedef long long int VolumeID;
+    typedef uint64_t CellID;
+    typedef uint64_t VolumeID;
+    typedef int64_t  FieldID;
   }
 
 
@@ -54,6 +55,7 @@ namespace dd4hep {
   typedef DDSegmentation::BitFieldElement BitFieldElement;
 #else
   using DDSegmentation::CellID;
+  using DDSegmentation::FieldID;
   using DDSegmentation::VolumeID;
   using DDSegmentation::BitFieldCoder;
   using DDSegmentation::BitFieldElement;
@@ -112,6 +114,12 @@ namespace dd4hep {
     unsigned long long int hash64(const char* key);
     /// 64 bit hash function
     unsigned long long int hash64(const std::string& key);
+    /// 64 bit hash update function
+    unsigned long long int update_hash64(unsigned long long int hash, const void* key, std::size_t len);
+    /// 64 bit hash update function
+    unsigned long long int update_hash64(unsigned long long int hash, const std::string& key);
+    /// 64 bit hash update function
+    unsigned long long int update_hash64(unsigned long long int hash, const char* key);
   
     /// 32 bit hash function
     inline unsigned int hash32(const void* key, std::size_t len) {
@@ -213,6 +221,12 @@ namespace dd4hep {
       /// Definition of the vector type
       typedef std::vector<value_t>              vector_t;
 
+      /// Definition of the bool mapped type
+      typedef std::pair<bool,value_t>           bool_pair_t;
+      /// Definition of the char mapped type
+      typedef std::pair<char,value_t>           char_pair_t;
+      /// Definition of the unsigned char mapped type
+      typedef std::pair<unsigned char,value_t>  uchar_pair_t;
       /// Definition of the short integer mapped type
       typedef std::pair<short,value_t>          short_pair_t;
       /// Definition of the unsigned short integer mapped type
@@ -225,6 +239,10 @@ namespace dd4hep {
       typedef std::pair<long,value_t>           long_pair_t;
       /// Definition of the unsigned long integer mapped type
       typedef std::pair<unsigned long,value_t>  ulong_pair_t;
+      /// Definition of the size_t mapped type
+      typedef std::pair<float,value_t>          float_pair_t;
+      /// Definition of the size_t mapped type
+      typedef std::pair<double,value_t>         double_pair_t;
       /// Definition of the size_t mapped type
       typedef std::pair<size_t,value_t>         size_pair_t;
       /// Definition of the string mapped type

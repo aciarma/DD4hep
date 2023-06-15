@@ -12,13 +12,23 @@ from __future__ import absolute_import
 
 
 def run():
+  """
+    Small test for process splitting by segmentation.
+    Assigned parts of the segmentation are processed by a specified
+    container action (here a DigiSegmentDepositPrint instance)
+
+    \author  M.Frank
+    \version 1.0
+  """
   import DigiTest
   digi = DigiTest.Test(geometry=None)
   digi.load_geo()
-  input = digi.input_action('DigiParallelActionSequence/READER')
+  input_action = digi.input_action('DigiParallelActionSequence/READER')
   # ========================================================================
   digi.info('Created SIGNAL input')
-  signal = input.adopt_action('DigiROOTInput/SignalReader', mask=0x0, input=[digi.next_input()])
+  signal = input_action.adopt_action('DigiDDG4ROOT/SignalReader',
+                                     mask=0x0,
+                                     input=[digi.next_input()])
   digi.check_creation([signal])
   # ========================================================================
   event = digi.event_action('DigiSequentialActionSequence/EventAction')
@@ -30,15 +40,15 @@ def run():
                                     output_mask=0xFEED)
   splitter = digi.create_action('DigiSegmentSplitter/Splitter',
                                 parallel=True,
-                                split_by='layer',
-                                detector='SiTrackerBarrel',
+                                split_by='module',
+                                detector='Minitel1',
                                 processor_type='DigiSegmentDepositPrint')
   split_action.adopt_container_processor(splitter, splitter.collection_names())
 
   event.adopt_action('DigiStoreDump/StoreDump')
   digi.info('Created event.dump')
   # ========================================================================
-  digi.run_checked(num_events=1, num_threads=10, parallel=3)
+  digi.run_checked(num_events=5, num_threads=10, parallel=3)
 
 
 if __name__ == '__main__':

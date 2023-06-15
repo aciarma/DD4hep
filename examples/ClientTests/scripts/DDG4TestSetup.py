@@ -29,15 +29,15 @@ logger = logging.getLogger(__name__)
 
 
 class Setup:
-  def __init__(self, geometry_file):
+  def __init__(self, geometry_file, macro=None, vis=None):
     self.kernel = DDG4.Kernel()
     self.kernel.setOutputLevel(str('Geant4Converter'), Output.DEBUG)
     self.kernel.setOutputLevel(str('Gun'), Output.INFO)
+    self.description = self.kernel.detectorDescription()
     self.kernel.loadGeometry(str(geometry_file))
-
     self.geant4 = DDG4.Geant4(self.kernel)
     self.geant4.printDetectors()
-    self.geant4.setupCshUI()
+    self.ui = self.geant4.setupCshUI(macro=macro, vis=vis)
 
   def configure(self):
     # Configure field
@@ -46,19 +46,24 @@ class Setup:
 
   def defineOutput(self, output):
     # Configure I/O
-    evt_root = self.geant4.setupROOTOutput('RootOutput', output, mc_truth=True)
-    return evt_root
+    evt_write = self.geant4.setupROOTOutput('RootOutput', output, mc_truth=True)
+    return evt_write
+
+  def defineEdm4hepOutput(self, output):
+    # Configure I/O
+    evt_write = self.geant4.setupEDM4hepOutput('Edm4hepOutput', output)
+    return evt_write
 
   def setupGun(self, name="Gun", particle='pi-', energy=100 * GeV, multiplicity=1):
     # Setup particle gun
     return self.geant4.setupGun(name, particle=particle, energy=energy, multiplicity=multiplicity)
 
   def setupInput(self, spec, mask=1):
-    input = DDG4.GeneratorAction(self.kernel, "Geant4InputAction/Input")
-    input.Input = spec
-    input.MomentumScale = 1.0
-    input.Mask = mask
-    self.geant4.buildInputStage([input])
+    input_action = DDG4.GeneratorAction(self.kernel, "Geant4InputAction/Input")
+    input_action.Input = spec
+    input_action.MomentumScale = 1.0
+    input_action.Mask = mask
+    self.geant4.buildInputStage([input_action])
 
   def setupGenerator(self):
     # And handle the simulation particles.
@@ -70,11 +75,14 @@ class Setup:
     part.enableUI()
     return part
 
-  def setupPhysics(self, model='QGSP_BERT'):
+  def setupPhysics(self, model='QGSP_BERT', dump=False):
     # Now build the physics list:
     self.phys = self.kernel.physicsList()
     self.phys.extends = model
+    self.phys.decays = True
     self.phys.enableUI()
+    if dump:
+      self.phys.dump()
     return self
 
   def run(self, num_events=None):

@@ -43,23 +43,39 @@ DigiAttenuator::~DigiAttenuator() {
 }
 
 /// Attenuator callback for single container
-template <typename T> std::size_t DigiAttenuator::attenuate(T& cont) const {
-  for( auto& c : cont )   {
-    auto& depo = c.second;
-    depo.deposit *= m_factor;
-    for( auto& h : depo.history.hits ) h.weight *= m_factor;
-    for( auto& h : depo.history.particles ) h.weight *= m_factor;
+template <typename T> std::size_t
+DigiAttenuator::attenuate(T& cont, const predicate_t& predicate) const {
+  for( auto& dep : cont )   {
+    if ( predicate(dep) )   {
+      dep.second.deposit *= m_factor;
+      auto& e = dep.second.history;
+      for( auto& h : e.hits ) h.weight *= m_factor;
+      for( auto& h : e.particles ) h.weight *= m_factor;
+    }
+  }
+  return cont.size();
+}
+
+/// Attenuator callback for single container
+template <> std::size_t
+DigiAttenuator::attenuate<DetectorHistory>(DetectorHistory& cont, const predicate_t& /* predicate */) const {
+  for( auto& history : cont )   {
+    auto& entry = history.second;
+    for( auto& h : entry.hits ) h.weight *= m_factor;
+    for( auto& h : entry.particles ) h.weight *= m_factor;
   }
   return cont.size();
 }
 
 /// Main functional callback adapter
-void DigiAttenuator::execute(DigiContext& context, work_t& work)  const   {
+void DigiAttenuator::execute(DigiContext& context, work_t& work, const predicate_t& predicate)  const   {
   std::size_t count = 0;
   if ( auto* m = work.get_input<DepositMapping>() )
-    count = this->attenuate(*m);
+    count = this->attenuate(*m, predicate);
   else if ( auto* v = work.get_input<DepositVector>() )
-    count = this->attenuate(*v);
+    count = this->attenuate(*v, predicate);
+  else if ( auto* h = work.get_input<DetectorHistory>() )
+    count = this->attenuate(*h, predicate);
   Key key { work.input.key };
   std::string nam = Key::key_name(key)+":";
   info("%s+++ %-32s mask:%04X item: %08X Attenuated %6ld hits by %8.5f",
@@ -70,10 +86,10 @@ void DigiAttenuator::execute(DigiContext& context, work_t& work)  const   {
 DigiAttenuatorSequence::DigiAttenuatorSequence(const DigiKernel& krnl, const std::string& nam)
   : DigiContainerSequenceAction(krnl, nam)
 {
-  declareProperty("processor_type", m_processor_type = "DigiAttenuator");
-  declareProperty("containers",     m_container_attenuation);
-  declareProperty("signal_decay",   m_signal_decay = "exponential");
-  declareProperty("t0",             m_t0);
+  declareProperty("processor_type",    m_processor_type = "DigiAttenuator");
+  declareProperty("containers",        m_container_attenuation);
+  declareProperty("signal_decay",      m_signal_decay = "exponential");
+  declareProperty("t0",                m_t0);
   InstanceCount::increment(this);
 }
 
@@ -90,7 +106,6 @@ void DigiAttenuatorSequence::initialize()   {
     return;
   }
   for ( const auto& c : m_container_attenuation )   {
-    std::string nam = name() + "." + c.first;
     double factor = 0e0;
     switch( ::toupper(m_signal_decay[0]) )   {
     case 'E':
@@ -101,13 +116,17 @@ void DigiAttenuatorSequence::initialize()   {
 	     m_signal_decay.c_str());
       break;
     }
+    // Attenuate the signal
+    std::string nam = name() + ".D." + c.first;
     auto* att = createAction<DigiAttenuator>(m_processor_type, m_kernel, nam);
     if ( !att )   {
       except("+++ Failed to create signal attenuator: %s of type: %s",
 	     nam.c_str(), m_processor_type.c_str());
     }
     att->property("factor").set(factor);
+    att->property("OutputLevel").set(int(outputLevel()));
     adopt_processor(att, c.first);
+    att->release(); // Release processor **after** adoption.
   }
   this->DigiContainerSequenceAction::initialize();
 }

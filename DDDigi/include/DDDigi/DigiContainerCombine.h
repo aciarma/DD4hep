@@ -18,6 +18,7 @@
 #include <DDDigi/DigiParallelWorker.h>
 
 /// C/C++ include files
+#include <mutex>
 #include <functional>
 
 /// Namespace for the AIDA detector description toolkit
@@ -56,13 +57,23 @@ namespace dd4hep {
       /// Property: mask of the deposit
       int                            m_deposit_mask { 0 };
       /// Property: Flag to erase already combined containers (not thread-safe!!!)
-      bool                           m_erase_combined { false };
+      bool                           m_erase_combined;
+      /// Property: Flag to indicate to merge 
+      bool                           m_merge_deposits;
+      /// Property: Flag to indicate to merge 
+      bool                           m_merge_response;
+      /// Property: Flag to indicate to merge 
+      bool                           m_merge_history;
+      /// Property: Flag to indicate to merge 
+      bool                           m_merge_particles;
 
       /// Fully qualified keys of all containers to be manipulated
       std::set<Key::key_type>        m_keys  { };
       /// Container keys of all containers to be manipulated
       std::set<Key::key_type>        m_cont_keys  { };
 
+      /// Lock to properly accumulate keys which were already used
+      mutable std::mutex             m_used_keys_lock;
       /// Worker objects to be submitted to TBB each performing part of the job
       Workers m_workers;
 
@@ -80,7 +91,7 @@ namespace dd4hep {
       void have_workers(size_t len)  const;
 
       /// Combine selected containers to one single deposit container
-      std::size_t combine_containers(DigiContext& context,
+      std::size_t combine_containers(context_t& context,
 				     DigiEvent& event,
 				     DataSegment& inputs,
 				     DataSegment& outputs)  const;
@@ -90,10 +101,10 @@ namespace dd4hep {
 
     public:
       /// Standard constructor
-      DigiContainerCombine(const DigiKernel& kernel, const std::string& name);
+      DigiContainerCombine(const kernel_t& kernel, const std::string& name);
 
       /// Main functional callback
-      virtual void execute(DigiContext& context)  const;
+      virtual void execute(context_t& context)  const;
     };
   }    // End namespace digi
 }      // End namespace dd4hep

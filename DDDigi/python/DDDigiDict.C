@@ -44,6 +44,8 @@ struct DDDigiDict  {};
 /// Namespace for the AIDA detector description toolkit
 namespace dd4hep {
 
+  int init_grammar_types();
+  
   /// Namespace for the Digitization part of the AIDA detector description toolkit
   namespace digi {
 
@@ -53,39 +55,39 @@ namespace dd4hep {
     struct ActionHandle  {
       DigiAction* action;
       explicit ActionHandle(DigiAction* a) : action(a)  {
-	if (action) action->addRef();
+        if (action) action->addRef();
       }
       ActionHandle(const ActionHandle& h) : action(h.action) {
-	if (action) action->addRef();
+        if (action) action->addRef();
       }
       ~ActionHandle()   {
-	if (action) action->release();
+        if (action) action->release();
       }
       ActionHandle& operator=(const ActionHandle& h) { 
-	if ( h.action ) h.action->addRef();
-	if ( action ) action->release();
-	action = h.action;
-	return *this;
+        if ( h.action ) h.action->addRef();
+        if ( action ) action->release();
+        action = h.action;
+        return *this;
       }
       DigiAction* release()  {
-	DigiAction* tmp = action;
-	action=0;
-	return tmp;
+        DigiAction* tmp = action;
+        action=0;
+        return tmp;
       }
       operator dd4hep::digi::DigiAction* () const         { return action; }
       DigiAction* operator->() const                      { return action; }
       DigiAction* get() const                             { return action; }
       DigiAction* I_am_a_ROOT_interface_handle() const    { return action; }
       KernelHandle kernel()  const  {
-	auto* k = const_cast<DigiKernel*>(action->kernel());
-	return KernelHandle(k);
+        auto* k = const_cast<DigiKernel*>(action->kernel());
+        return KernelHandle(k);
       }
     };
 
     struct PropertyResult  {
     public:
-      std::string data  {};
-      int status  { 0 };
+      std::string data   {   };
+      int status         { 0 };
       PropertyResult() = default;
       PropertyResult(const std::string& d, int s);
       PropertyResult(const PropertyResult& c) = default;
@@ -99,47 +101,34 @@ namespace dd4hep {
 
     struct DigiActionCreation  {
       template <typename H> static H* cst(DigiAction* in)  {
-	auto* out = dynamic_cast<H*>(in);
-	if ( out ) return out;
-	if ( in )
-	  except("DigiAction","Invalid cast of action '%s' [type:%s] to type %s!",
-		 in->c_name(), typeName(typeid(DigiAction)).c_str(), typeName(typeid(H)).c_str());
-	except("DigiAction","Invalid cast of NULL [type:%s] to type %s!",
-	       typeName(typeid(DigiAction)).c_str(), typeName(typeid(H)).c_str());
-	return nullptr;
+        auto* out = dynamic_cast<H*>(in);
+        if ( out ) return out;
+        if ( in )
+          except("DigiAction","Invalid cast of action '%s' [type:%s] to type %s!",
+                 in->c_name(), typeName(typeid(DigiAction)).c_str(), typeName(typeid(H)).c_str());
+        except("DigiAction","Invalid cast of NULL [type:%s] to type %s!",
+               typeName(typeid(DigiAction)).c_str(), typeName(typeid(H)).c_str());
+        return nullptr;
       }
 
       static KernelHandle createKernel(DigiAction* action)   {
-	auto* k = const_cast<DigiKernel*>(action->kernel());
-	return KernelHandle(k);
+        auto* k = const_cast<DigiKernel*>(action->kernel());
+        return KernelHandle(k);
       }
 
       static ActionHandle createAction(KernelHandle& kernel, const std::string& name_type)   {
         DigiHandle<DigiAction> action(*kernel.get(),name_type);
         return ActionHandle(action.get());
       }
+      static DigiAction* toAction(DigiKernel* f)    { return f;        }
       static DigiAction* toAction(DigiAction* f)    { return f;        }
+      static DigiAction* toAction(KernelHandle f)   { return f.value;  }
       static DigiAction* toAction(ActionHandle f)   { return f.action; }
 
       static DigiEventAction*        toEventAction(DigiAction* a) { return cst<DigiEventAction>(a); }
+      static DigiDepositMonitor*     toDepositMonitor(DigiAction* a) { return cst<DigiDepositMonitor>(a); }
       static DigiContainerProcessor* toContainerProcessor(DigiAction* a) { return cst<DigiContainerProcessor>(a); }
-
-      /// Access kernel property
-      static PropertyResult getPropertyKernel(DigiKernel* kernel, const std::string& name)  {
-        if ( kernel->hasProperty(name) )  {
-          return PropertyResult(kernel->property(name).str(),1);
-        }
-        return PropertyResult("",0);
-      }
-
-      /// Set kernel property
-      static int setPropertyKernel(DigiKernel* kernel, const std::string& name, const std::string& value)  {
-        if ( kernel->hasProperty(name) )  {
-          kernel->property(name).str(value);
-          return 1;
-        }
-        return 0;
-      }
+      static DigiContainerSequenceAction* toContainerSequenceAction(DigiAction* a) { return cst<DigiContainerSequenceAction>(a); }
 
       /// Access DigiAction property
       static PropertyResult getProperty(DigiAction* action, const std::string& name)  {
@@ -151,6 +140,8 @@ namespace dd4hep {
 
       /// Set DigiAction property
       static int setProperty(DigiAction* action, const std::string& name, const std::string& value)  {
+        init_grammar_types();
+        printout(DEBUG,"setProperty","Setting property: %s.%s = %s", action->name().c_str(), name.c_str(), value.c_str());
         if ( action->hasProperty(name) )  {
           action->property(name).str(value);
           return 1;
@@ -160,15 +151,15 @@ namespace dd4hep {
 
 #define MKVAL auto val = value
 
-#define ADD_PROPERTY(n,X)						\
+#define ADD_PROPERTY(n,X)                                               \
       static int add##n       (DigiAction* action, const std::string& name, const X value) \
-      {	return add_action_property(action, name, value); }		\
+      {	return add_action_property(action, name, value); }              \
       static int addVector##n (DigiAction* action, const std::string& name, std::vector<X> value) \
-      {	MKVAL; return add_action_property(action, name, val); }	\
+      {	MKVAL; return add_action_property(action, name, val); }         \
       static int addList##n   (DigiAction* action, const std::string& name, std::list<X> value) \
-      {	MKVAL; return add_action_property(action, name, val); }		\
+      {	MKVAL; return add_action_property(action, name, val); }         \
       static int addSet##n    (DigiAction* action, const std::string& name, std::set<X> value) \
-      {	MKVAL; return add_action_property(action, name, val); }		\
+      {	MKVAL; return add_action_property(action, name, val); }         \
       static int addMapped##n (DigiAction* action, const std::string& name, std::map<std::string,X> value) \
       {	MKVAL; return add_action_property(action, name, val); }
       ADD_PROPERTY(Property,int)
@@ -179,10 +170,10 @@ namespace dd4hep {
       ADD_PROPERTY(Property,std::string)
 
       static int addPositionProperty(DigiAction* action, const std::string& name, const std::string value)     {
-	Position pos;
-	Property pr(pos);
-	pr.str(value);
-	return add_action_property(action, name, pos);
+        Position pos;
+        Property pr(pos);
+        pr.str(value);
+        return add_action_property(action, name, pos);
       }
     };
   }
@@ -191,9 +182,9 @@ namespace dd4hep {
 #include <DDDigi/DigiSynchronize.h>
 #include <DDDigi/DigiInputAction.h>
 #include <DDDigi/DigiSegmentSplitter.h>
-#include <DDDigi/DigiSegmentProcessor.h>
 #include <DDDigi/DigiActionSequence.h>
 #include <DDDigi/DigiSignalProcessor.h>
+#include <DDDigi/DigiDepositMonitor.h>
 
 // CINT configuration
 #if defined(__CINT__) || defined(__MAKECINT__) || defined(__CLING__) || defined(__ROOTCLING__)
@@ -202,11 +193,32 @@ namespace dd4hep {
 #pragma link off all classes;
 #pragma link off all functions;
 
-using namespace std;
-
 #pragma link C++ namespace dd4hep;
 #pragma link C++ namespace dd4hep::digi;
 
+///---- Digi data item wrappers
+#pragma link C++ class std::pair<dd4hep::digi::Key::key_type, dd4hep::digi::Particle>+;
+#pragma link C++ class std::map<dd4hep::digi::Key::key_type, dd4hep::digi::Particle>+;
+#pragma link C++ class std::map<dd4hep::digi::Key::key_type, dd4hep::digi::Particle*>+;
+#pragma link C++ class std::vector<std::pair<dd4hep::digi::Key::key_type, dd4hep::digi::Particle> >+;
+#pragma link C++ class std::vector<std::pair<dd4hep::digi::Key::key_type, dd4hep::digi::Particle*> >+;
+
+#pragma link C++ class std::pair<dd4hep::CellID, dd4hep::digi::EnergyDeposit>+;
+#pragma link C++ class std::pair<dd4hep::CellID, dd4hep::digi::EnergyDeposit*>+;
+#pragma link C++ class std::map<dd4hep::CellID, dd4hep::digi::EnergyDeposit>+;
+#pragma link C++ class std::map<dd4hep::CellID, dd4hep::digi::EnergyDeposit*>+;
+#pragma link C++ class std::vector<std::pair<dd4hep::CellID, dd4hep::digi::EnergyDeposit> >+;
+#pragma link C++ class std::vector<std::pair<dd4hep::CellID, dd4hep::digi::EnergyDeposit*> >+;
+
+#pragma link C++ class dd4hep::digi::History+;
+#pragma link C++ class dd4hep::digi::Particle+;
+#pragma link C++ class dd4hep::digi::EnergyDeposit+;
+#pragma link C++ class dd4hep::digi::ParticleMapping+;
+#pragma link C++ class dd4hep::digi::DepositMapping+;
+#pragma link C++ class dd4hep::digi::DepositVector+;
+#pragma link C++ class dd4hep::digi::DigiEvent;
+
+///---- action dictionaries
 #pragma link C++ class dd4hep::digi::KernelHandle;
 #pragma link C++ class dd4hep::digi::ActionHandle;
 
@@ -225,17 +237,7 @@ using namespace std;
 #pragma link C++ class dd4hep::digi::DigiContainerSequenceAction;
 #pragma link C++ class dd4hep::digi::DigiMultiContainerProcessor;
 
-#pragma link C++ class dd4hep::digi::DigiSegmentProcessor;
-#pragma link C++ class dd4hep::digi::DigiSegmentSequence;
 #pragma link C++ class dd4hep::digi::DigiSegmentSplitter;
-
-/// Digi data item wrappers
-#pragma link C++ class dd4hep::digi::Particle+;
-#pragma link C++ class dd4hep::digi::EnergyDeposit+;
-#pragma link C++ class dd4hep::digi::ParticleMapping+;
-#pragma link C++ class dd4hep::digi::DepositMapping+;
-#pragma link C++ class dd4hep::digi::DepositVector+;
-
-#pragma link C++ class dd4hep::digi::DigiEvent;
+#pragma link C++ class dd4hep::digi::DigiDepositMonitor;
 
 #endif

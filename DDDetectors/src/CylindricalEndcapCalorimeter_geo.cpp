@@ -52,7 +52,7 @@ static Ref_t create_detector(Detector& description, xml_h e, SensitiveDetector s
       for(xml_coll_t l(x_layer,_U(slice)); l; ++l, ++im)  {
         xml_comp_t x_slice = l;
         double     w = x_slice.thickness();
-        string     slice_name = layer_name + _toString(m+1,"slice%d");
+        string     slice_name = layer_name + _toString(im+1,"slice%d");
         Material   slice_mat  = description.material(x_slice.materialStr());
         Volume     slice_vol (slice_name,Tube(rmin,rmax,w * 0.5),slice_mat);
 
@@ -62,7 +62,7 @@ static Ref_t create_detector(Detector& description, xml_h e, SensitiveDetector s
         }
         slice_vol.setAttributes(description,x_slice.regionStr(),x_slice.limitsStr(),x_slice.visStr());
         pv = layer_vol.placeVolume(slice_vol,Position(0,0,z-zlayer-layerWidth/2+w/2));
-        pv.addPhysVolID("slice",m+1);
+        pv.addPhysVolID("slice", im+1);
         z += w;
       }
       layer_vol.setVisAttributes(description,x_layer.visStr());
@@ -101,4 +101,3 @@ static Ref_t create_detector(Detector& description, xml_h e, SensitiveDetector s
 }
 
 DECLARE_DETELEMENT(DD4hep_CylindricalEndcapCalorimeter,create_detector)
-DECLARE_DEPRECATED_DETELEMENT(CylindricalEndcapCalorimeter,create_detector)

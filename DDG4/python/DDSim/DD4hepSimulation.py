@@ -10,6 +10,7 @@ from __future__ import absolute_import, unicode_literals, division, print_functi
 
 import os
 import sys
+import textwrap
 import traceback
 from DDSim.Helper.Meta import Meta
 from DDSim.Helper.LCIO import LCIO
@@ -17,6 +18,7 @@ from DDSim.Helper.HepMC3 import HepMC3
 from DDSim.Helper.GuineaPig import GuineaPig
 from DDSim.Helper.Physics import Physics
 from DDSim.Helper.Filter import Filter
+from DDSim.Helper.Geometry import Geometry
 from DDSim.Helper.Random import Random
 from DDSim.Helper.Action import Action
 from DDSim.Helper.Output import Output, outputLevel, outputLevelType
@@ -39,7 +41,16 @@ try:
 except ImportError:
   ARGCOMPLETEENABLED = False
 
-POSSIBLEINPUTFILES = (".stdhep", ".slcio", ".HEPEvt", ".hepevt", ".hepmc", ".pairs")
+HEPMC3_SUPPORTED_EXTENSIONS = [
+    ".hepmc.gz", ".hepmc.xz", ".hepmc.bz2",
+    ".hepmc3", ".hepmc3.gz", ".hepmc3.xz", ".hepmc3.bz2",
+    ".hepmc3.tree.root",
+    ]
+POSSIBLEINPUTFILES = [
+    ".stdhep", ".slcio", ".HEPEvt", ".hepevt",
+    ".pairs",
+    ".hepmc",
+    ] + HEPMC3_SUPPORTED_EXTENSIONS
 
 
 class DD4hepSimulation(object):
@@ -85,6 +96,7 @@ class DD4hepSimulation(object):
     self.hepmc3 = HepMC3()
     self.meta = Meta()
 
+    self.geometry = Geometry()
     self.filter = Filter()
     self.physics = Physics()
 
@@ -248,11 +260,11 @@ class DD4hepSimulation(object):
       logger.info("=" * 80)
       pprint(vars(self))
       logger.info("=" * 80)
-      exit(1)
+      exit(0)
 
     if self._dumpSteeringFile:
       self.__printSteeringFile(parser)
-      exit(1)
+      exit(0)
 
   def getDetectorLists(self, detectorDescription):
     ''' get lists of trackers and calorimeters that are defined in detectorDescription (the compact xml file)'''
@@ -291,7 +303,7 @@ class DD4hepSimulation(object):
     dd4hep.setPrintLevel(self.printLevel)
 
     for compactFile in self.compactFile:
-      kernel.loadGeometry(str("file:" + compactFile))
+      kernel.loadGeometry(str("file:" + os.path.abspath(compactFile)))
     detectorDescription = kernel.detectorDescription()
 
     DDG4.importConstants(detectorDescription)
@@ -299,21 +311,21 @@ class DD4hepSimulation(object):
   # ----------------------------------------------------------------------------------
 
     # simple = DDG4.Geant4( kernel, tracker='Geant4TrackerAction',calo='Geant4CalorimeterAction')
-    # simple = DDG4.Geant4( kernel, tracker='Geant4TrackerCombineAction',calo='Geant4ScintillatorCalorimeterAction')
-    simple = DDG4.Geant4(kernel, tracker=self.action.tracker, calo=self.action.calo)
+    # geant4 = DDG4.Geant4( kernel, tracker='Geant4TrackerCombineAction',calo='Geant4ScintillatorCalorimeterAction')
+    geant4 = DDG4.Geant4(kernel, tracker=self.action.tracker, calo=self.action.calo)
 
-    simple.printDetectors()
+    geant4.printDetectors()
 
     if self.runType == "vis":
-      simple.setupUI(typ="tcsh", vis=True, macro=self.macroFile)
+      geant4.setupUI(typ="tcsh", vis=True, macro=self.macroFile)
     elif self.runType == "qt":
-      simple.setupUI(typ="qt", vis=True, macro=self.macroFile)
+      geant4.setupUI(typ="qt", vis=True, macro=self.macroFile)
     elif self.runType == "run":
-      simple.setupUI(typ="tcsh", vis=False, macro=self.macroFile, ui=False)
+      geant4.setupUI(typ="tcsh", vis=False, macro=self.macroFile, ui=False)
     elif self.runType == "shell":
-      simple.setupUI(typ="tcsh", vis=False, macro=None, ui=True)
+      geant4.setupUI(typ="tcsh", vis=False, macro=None, ui=True)
     elif self.runType == "batch":
-      simple.setupUI(typ="tcsh", vis=False, macro=None, ui=False)
+      geant4.setupUI(typ="tcsh", vis=False, macro=None, ui=False)
     else:
       logger.error("unknown runType")
       exit(1)
@@ -322,10 +334,12 @@ class DD4hepSimulation(object):
 
     # -----------------------------------------------------------------------------------
     # setup the magnetic field:
-    self.__setMagneticFieldOptions(simple)
+    self.__setMagneticFieldOptions(geant4)
+
+    # configure geometry creation
+    self.geometry.constructGeometry(kernel, geant4, self.output.geometry)
 
     # ----------------------------------------------------------------------------------
-
     # Configure Run actions
     run1 = DDG4.RunAction(kernel, 'Geant4TestRunAction/RunInit')
     kernel.registerGlobalAction(run1)
@@ -338,20 +352,20 @@ class DD4hepSimulation(object):
     if callable(self.outputConfig._userPlugin):
       self.outputConfig._userPlugin(self)
     elif self.outputFile.endswith(".slcio"):
-      lcOut = simple.setupLCIOOutput('LcioOutput', self.outputFile)
+      lcOut = geant4.setupLCIOOutput('LcioOutput', self.outputFile)
       lcOut.RunHeader = self.meta.addParametersToRunHeader(self)
       eventPars = self.meta.parseEventParameters()
       lcOut.EventParametersString, lcOut.EventParametersInt, lcOut.EventParametersFloat = eventPars
       lcOut.RunNumberOffset = self.meta.runNumberOffset if self.meta.runNumberOffset > 0 else 0
       lcOut.EventNumberOffset = self.meta.eventNumberOffset if self.meta.eventNumberOffset > 0 else 0
     elif self.outputFile.endswith("edm4hep.root"):
-      e4Out = simple.setupEDM4hepOutput('EDM4hepOutput', self.outputFile)
+      e4Out = geant4.setupEDM4hepOutput('EDM4hepOutput', self.outputFile)
       eventPars = self.meta.parseEventParameters()
       e4Out.EventParametersString, e4Out.EventParametersInt, e4Out.EventParametersFloat = eventPars
       e4Out.RunNumberOffset = self.meta.runNumberOffset if self.meta.runNumberOffset > 0 else 0
       e4Out.EventNumberOffset = self.meta.eventNumberOffset if self.meta.eventNumberOffset > 0 else 0
     elif self.outputFile.endswith(".root"):
-      simple.setupROOTOutput('RootOutput', self.outputFile)
+      geant4.setupROOTOutput('RootOutput', self.outputFile)
 
     actionList = []
 
@@ -403,7 +417,7 @@ class DD4hepSimulation(object):
       elif inputFile.endswith(".hepevt"):
         gen = DDG4.GeneratorAction(kernel, "Geant4InputAction/hepevt%d" % index)
         gen.Input = "Geant4EventReaderHepEvtLong|" + inputFile
-      elif inputFile.endswith(".hepmc"):
+      elif inputFile.endswith(tuple([".hepmc"] + HEPMC3_SUPPORTED_EXTENSIONS)):
         if self.hepmc3.useHepMC3:
           gen = DDG4.GeneratorAction(kernel, "Geant4InputAction/hepmc%d" % index)
           gen.Parameters = self.hepmc3.getParameters()
@@ -424,7 +438,7 @@ class DD4hepSimulation(object):
       self.__applyBoostOrSmear(kernel, actionList, index)
 
     if actionList:
-      self._buildInputStage(simple, actionList, output_level=self.output.inputStage,
+      self._buildInputStage(geant4, actionList, output_level=self.output.inputStage,
                             have_mctruth=self._enablePrimaryHandler())
 
     # ================================================================================================
@@ -461,9 +475,9 @@ class DD4hepSimulation(object):
 
     trk, cal, unk = self.getDetectorLists(detectorDescription)
 
-    for detectors, function, defFilter, abort in [(trk, simple.setupTracker, self.filter.tracker, False),
-                                                  (cal, simple.setupCalorimeter, self.filter.calo, False),
-                                                  (unk, simple.setupDetector, None, True),
+    for detectors, function, defFilter, abort in [(trk, geant4.setupTracker, self.filter.tracker, False),
+                                                  (cal, geant4.setupCalorimeter, self.filter.calo, False),
+                                                  (unk, geant4.setupDetector, None, True),
                                                   ]:
       try:
         self.__setupSensitiveDetectors(detectors, function, defFilter, abort)
@@ -506,9 +520,9 @@ class DD4hepSimulation(object):
         logger.info("DDSim            INFO  StartUp Time: %3.2f s, Event Processing: %3.2f s (%3.2f s/Event) "
                     % (startUpTime, eventTime, perEventTime))
 
-  def __setMagneticFieldOptions(self, simple):
+  def __setMagneticFieldOptions(self, geant4):
     """ create and configure the magnetic tracking setup """
-    field = simple.addConfig('Geant4FieldTrackingSetupAction/MagFieldTrackingSetup')
+    field = geant4.addConfig('Geant4FieldTrackingSetupAction/MagFieldTrackingSetup')
     field.stepper = self.field.stepper
     field.equation = self.field.equation
     field.eps_min = self.field.eps_min
@@ -525,8 +539,11 @@ class DD4hepSimulation(object):
     """
     if isinstance(fileNames, six.string_types):
       fileNames = [fileNames]
-    if not all(fileName.endswith(extensions) for fileName in fileNames):
+    if not all(fileName.endswith(tuple(extensions)) for fileName in fileNames):
       self._errorMessages.append("ERROR: Unknown fileformat for file: %s" % fileNames)
+    is_hepmc3_extension = any(fileName.endswith(tuple(HEPMC3_SUPPORTED_EXTENSIONS)) for fileName in fileNames)
+    if not self.hepmc3.useHepMC3 and is_hepmc3_extension:
+      self._errorMessages.append("ERROR: HepMC3 files or compressed HepMC2 require the use of HepMC3 library")
     return fileNames
 
   def __applyBoostOrSmear(self, kernel, actionList, mask):
@@ -608,11 +625,12 @@ class DD4hepSimulation(object):
   def __printSteeringFile(self, parser):
     """print the parameters formated as a steering file"""
 
-    steeringFileBase = """from DDSim.DD4hepSimulation import DD4hepSimulation
-from g4units import mm, GeV, MeV
-SIM = DD4hepSimulation()
-
-"""
+    steeringFileBase = textwrap.dedent("""\
+        from DDSim.DD4hepSimulation import DD4hepSimulation
+        from g4units import mm, GeV, MeV
+        SIM = DD4hepSimulation()
+        """)
+    steeringFileBase += "\n"
     optionDict = parser._option_string_actions
     parameters = vars(self)
     for parName, parameter in sorted(list(parameters.items()), key=sortParameters):
@@ -663,14 +681,17 @@ SIM = DD4hepSimulation()
     if self.runType == "batch":
       if not self.numberOfEvents:
         self._errorMessages.append("ERROR: Batch mode requested, but did not set number of events")
-      if not self.inputFiles and not self.enableGun:
-        self._errorMessages.append("ERROR: Batch mode requested, but did not set inputFile(s) or gun")
+      if not (self.inputFiles or self.enableGun or self.inputConfig.userInputPlugin):
+        self._errorMessages.append("ERROR: Batch mode requested, but did not set inputFile(s), gun, or userInputPlugin")
 
     if self.inputFiles and (self.enableG4Gun or self.enableG4GPS):
       self._errorMessages.append("ERROR: Cannot use both inputFiles and Geant4Gun or GeneralParticleSource")
 
     if self.enableGun and (self.enableG4Gun or self.enableG4GPS):
       self._errorMessages.append("ERROR: Cannot use both DD4hepGun and Geant4 Gun or GeneralParticleSource")
+
+    if self.inputConfig.userInputPlugin and (self.enableG4Gun or self.enableG4GPS):
+      self._errorMessages.append("ERROR: Cannot use both userInputPlugin and Geant4 Gun or GeneralParticleSource")
 
     if self.numberOfEvents < 0 and not self.inputFiles:
       self._errorMessages.append("ERROR: Negative number of events only sensible for inputFiles")
@@ -688,7 +709,7 @@ SIM = DD4hepSimulation()
       logger.info("Disabling the PrimaryHandler")
     return enablePrimaryHandler
 
-  def _buildInputStage(self, simple, generator_input_modules, output_level=None, have_mctruth=True):
+  def _buildInputStage(self, geant4, generator_input_modules, output_level=None, have_mctruth=True):
     """
     Generic build of the input stage with multiple input modules.
     Actions executed are:
@@ -699,10 +720,10 @@ SIM = DD4hepSimulation()
     4) Add the MC truth handler
     """
     from DDG4 import GeneratorAction
-    ga = simple.kernel().generatorAction()
+    ga = geant4.kernel().generatorAction()
 
     # Register Generation initialization action
-    gen = GeneratorAction(simple.kernel(), "Geant4GeneratorActionInit/GenerationInit")
+    gen = GeneratorAction(geant4.kernel(), "Geant4GeneratorActionInit/GenerationInit")
     if output_level is not None:
       gen.OutputLevel = output_level
     ga.adopt(gen)
@@ -716,7 +737,7 @@ SIM = DD4hepSimulation()
       ga.adopt(gen)
 
     # Merge all existing interaction records
-    gen = GeneratorAction(simple.kernel(), "Geant4InteractionMerger/InteractionMerger")
+    gen = GeneratorAction(geant4.kernel(), "Geant4InteractionMerger/InteractionMerger")
     gen.enableUI()
     if output_level is not None:
       gen.OutputLevel = output_level
@@ -724,7 +745,7 @@ SIM = DD4hepSimulation()
 
     # Finally generate Geant4 primaries
     if have_mctruth:
-      gen = GeneratorAction(simple.kernel(), "Geant4PrimaryHandler/PrimaryHandler")
+      gen = GeneratorAction(geant4.kernel(), "Geant4PrimaryHandler/PrimaryHandler")
       gen.RejectPDGs = ConfigHelper.makeString(self.physics.rejectPDGs)
       gen.ZeroTimePDGs = ConfigHelper.makeString(self.physics.zeroTimePDGs)
       gen.enableUI()

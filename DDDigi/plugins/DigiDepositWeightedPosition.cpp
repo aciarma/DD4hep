@@ -19,6 +19,7 @@
 
 /// Namespace for the AIDA detector description toolkit
 namespace dd4hep {
+
   /// Namespace for the Digitization part of the AIDA detector description toolkit
   namespace digi {
 
@@ -33,55 +34,44 @@ namespace dd4hep {
      *  \version 1.0
      *  \ingroup DD4HEP_DIGITIZATION
      */
-    class DigiDepositWeightedPosition : public DigiContainerProcessor   {
+    class DigiDepositWeightedPosition : public DigiDepositsProcessor   {
     protected:
       /// Property: Energy cutoff. No hits will be merged with a deposit smaller
-      double m_cutoff { std::numeric_limits<double>::epsilon() };
-      /// Property: register empty containers
-      bool   m_register_empty_containers { true };
+      double m_cutoff { -std::numeric_limits<double>::epsilon() };
 
     public:
+      /// Create deposit mapping with updates on same cellIDs
+      template <typename T> void
+      create_deposits(context_t& context, const T& cont, work_t& work, const predicate_t& predicate)  const  {
+        Key key(cont.name, work.environ.output.mask);
+        DepositMapping m(cont.name, work.environ.output.mask, cont.data_type );
+        std::size_t dropped = 0UL, updated = 0UL, added = 0UL;
+        for( const auto& dep : cont )    {
+          if ( predicate(dep) )   {
+            const EnergyDeposit& depo = dep.second;
+            if ( depo.deposit >= m_cutoff )   {
+              CellID cell = dep.first;
+              auto   iter = m.data.find(cell);
+              if ( iter == m.data.end() )
+                m.data.emplace(dep.first, depo), ++added;
+              else
+                iter->second.update_deposit_weighted(depo), ++updated;
+              continue;
+            }
+            ++dropped;
+          }
+        }
+        info("%s+++ %-32s added %6ld updated %6ld dropped %6ld entries (now: %6ld) from mask: %04X to mask: %04X",
+             context.event->id(), cont.name.c_str(), added, updated, dropped, m.size(), cont.key.mask(), m.key.mask());
+        work.environ.output.data.put(m.key, std::move(m));
+      }
+
       /// Standard constructor
       DigiDepositWeightedPosition(const DigiKernel& krnl, const std::string& nam)
-	: DigiContainerProcessor(krnl, nam)
+        : DigiDepositsProcessor(krnl, nam)
       {
-	declareProperty("deposit_cutoff", m_cutoff);
-	declareProperty("m_register_empty_containers", m_register_empty_containers);
-      }
-
-      /// Create deposit mapping with updates on same cellIDs
-      template <typename T> void create_deposits(const T& cont, work_t& work)  const  {
-	Key key(cont.name, work.output.mask);
-	DepositMapping m(cont.name, work.output.mask);
-	std::size_t dropped = 0UL, updated = 0UL, added = 0UL;
-	for( const auto& dep : cont )    {
-	  const EnergyDeposit& depo = dep.second;
-	  if ( depo.deposit >= m_cutoff )   {
-	    CellID cell = dep.first;
-	    auto   iter = m.data.find(cell);
-	    if ( iter == m.data.end() )
-	      m.data.emplace(dep.first, depo), ++added;
-	    else
-	      iter->second.update_deposit_weighted(depo), ++updated;
-	    continue;
-	  }
-	  ++dropped;
-	}
-	if ( m_register_empty_containers )   {
-	  work.output.data.put(m.key, std::move(m));
-	}
-	info("+++ %-32s added %6ld updated %6ld dropped %6ld entries (now: %6ld) from mask: %04X to mask: %04X",
-	     cont.name.c_str(), added, updated, dropped, m.size(), cont.key.mask(), m.key.mask());
-      }
-
-      /// Main functional callback
-      virtual void execute(DigiContext&, work_t& work)  const override final  {
-	if ( const auto* v = work.get_input<DepositVector>() )
-	  create_deposits(*v, work);
-	else if ( const auto* m = work.get_input<DepositMapping>() )
-	  create_deposits(*m, work);
-	else
-	  except("Request to handle unknown data type: %s", work.input_type_name().c_str());
+        declareProperty("deposit_cutoff", m_cutoff);
+        DEPOSIT_PROCESSOR_BIND_HANDLERS(DigiDepositWeightedPosition::create_deposits);
       }
     };
   }    // End namespace digi

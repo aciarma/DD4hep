@@ -57,6 +57,50 @@ if (DD4HEP_USE_GEANT4)
     pytest ${PROJECT_SOURCE_DIR}/DDTest/python/test_import_ddg4.py)
   SET_TESTS_PROPERTIES( t_test_python_import_ddg4 PROPERTIES FAIL_REGULAR_EXPRESSION  "Exception;EXCEPTION;ERROR;Error" )
 
+  if(DD4HEP_USE_HEPMC3)
+    set(TEST_HEPMC3_EXTENSIONS)
+
+    if(DD4HEP_HEPMC3_COMPRESSION_SUPPORT)
+      file(ARCHIVE_CREATE
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/geantinos.hepmc.gz
+        PATHS ${CMAKE_CURRENT_SOURCE_DIR}/inputFiles/geantinos.hepmc
+        FORMAT raw
+        COMPRESSION GZip)
+      list(APPEND TEST_HEPMC3_EXTENSIONS .gz)
+      file(ARCHIVE_CREATE
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/geantinos.hepmc.xz
+        PATHS ${CMAKE_CURRENT_SOURCE_DIR}/inputFiles/geantinos.hepmc
+        FORMAT raw
+        COMPRESSION XZ)
+      list(APPEND TEST_HEPMC3_EXTENSIONS .xz)
+      file(ARCHIVE_CREATE
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/geantinos.hepmc.bz2
+        PATHS ${CMAKE_CURRENT_SOURCE_DIR}/inputFiles/geantinos.hepmc
+        FORMAT raw
+        COMPRESSION BZip2)
+      list(APPEND TEST_HEPMC3_EXTENSIONS .bz2)
+    endif()
+
+    foreach(TEST_HEPMC3_EXTENSION "" ${TEST_HEPMC3_EXTENSIONS})
+      if("${TEST_HEPMC3_EXTENSION}" STREQUAL "")
+        set(TEST_HEPMC3_INPUT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/inputFiles/Pythia_output.hepmc${TEST_HEPMC3_EXTENSION}")
+      else()
+        set(TEST_HEPMC3_INPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/geantinos.hepmc${TEST_HEPMC3_EXTENSION}")
+      endif()
+      get_filename_component(TEST_HEPMC3_INPUT_FILE_NAME "${TEST_HEPMC3_INPUT_FILE}" NAME)
+      string(REPLACE "." "_" TEST_NAME "test_ddsim_hepmc3_${TEST_HEPMC3_INPUT_FILE_NAME}")
+
+      add_test( t_${TEST_NAME} "${CMAKE_INSTALL_PREFIX}/bin/run_test.sh"
+        ddsim --compactFile=${CMAKE_INSTALL_PREFIX}/DDDetectors/compact/SiD.xml --runType=batch -N=1
+        --outputFile=${TEST_NAME}.root --inputFiles ${TEST_HEPMC3_INPUT_FILE}
+        --part.userParticleHandler=)
+
+      # Tests causes G4Exception about: Isomer level 9 may be ambiguous, just a warning
+      # space before Exception intentional!!!
+      set_tests_properties( t_${TEST_NAME} PROPERTIES FAIL_REGULAR_EXPRESSION  "ERROR;Error; Exception" )
+    endforeach()
+  endif()
+
   foreach(TEST_NAME
       test_EventReaders
       )
@@ -91,7 +135,7 @@ if (DD4HEP_USE_GEANT4)
       ddsim --compactFile=${CMAKE_INSTALL_PREFIX}/DDDetectors/compact/SiD.xml --runType=batch -G -N=2
       --outputFile=testSid${OUTPUT_FILE}
       --gun.position \"0.0 0.0 1.0*cm\" --gun.direction \"1.0 0.0 1.0\" --gun.momentumMax 100*GeV --part.userParticleHandler=)
-    SET_TESTS_PROPERTIES( t_test_ddsim_${OUTPUT_FILE} PROPERTIES FAIL_REGULAR_EXPRESSION  "Exception;EXCEPTION;ERROR;Error" )
+    SET_TESTS_PROPERTIES( t_test_ddsim_${OUTPUT_FILE} PROPERTIES FAIL_REGULAR_EXPRESSION  " Exception; EXCEPTION;ERROR;Error" )
   endforeach()
 
 endif()

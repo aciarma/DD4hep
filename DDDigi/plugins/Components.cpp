@@ -24,15 +24,6 @@
 #include <DDDigi/DigiInputAction.h>
 DECLARE_DIGIACTION_NS(dd4hep::digi,DigiInputAction)
 
-#include <DDDigi/DigiROOTInput.h>
-DECLARE_DIGIACTION_NS(dd4hep::digi,DigiROOTInput)
-
-#include <DDDigi/DigiOutputAction.h>
-DECLARE_DIGIACTION_NS(dd4hep::digi,DigiOutputAction)
-
-#include <DDDigi/DigiROOTOutput.h>
-DECLARE_DIGIACTION_NS(dd4hep::digi,DigiROOTOutput)
-
 #include <DDDigi/DigiSynchronize.h>
 DECLARE_DIGIACTION_NS(dd4hep::digi,DigiSynchronize)
 
@@ -63,10 +54,6 @@ DECLARE_DIGIACTION_NS(dd4hep::digi,DigiContainerCombine)
 #include <DDDigi/DigiContainerDrop.h>
 DECLARE_DIGIACTION_NS(dd4hep::digi,DigiContainerDrop)
 
-#include <DDDigi/DigiSegmentProcessor.h>
-DECLARE_DIGIACTION_NS(dd4hep::digi,DigiSegmentProcessor)
-DECLARE_DIGIACTION_NS(dd4hep::digi,DigiSegmentSequence)
-
 #include <DDDigi/DigiSegmentSplitter.h>
 DECLARE_DIGIACTION_NS(dd4hep::digi,DigiSegmentSplitter)
 
@@ -75,6 +62,11 @@ DECLARE_DIGIACTION_NS(dd4hep::digi,DigiMultiContainerProcessor)
 DECLARE_DIGIACTION_NS(dd4hep::digi,DigiContainerSequence)
 DECLARE_DIGIACTION_NS(dd4hep::digi,DigiContainerProcessor)
 DECLARE_DIGIACTION_NS(dd4hep::digi,DigiContainerSequenceAction)
+
+#include <DDDigi/DigiDepositMonitor.h>
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiDepositTimeMonitor)
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiDepositEnergyMonitor)
+DECLARE_DIGIACTION_NS(dd4hep::digi,DigiDepositPositionMonitor)
 
 /// Basic entry point 
 static long dummy(dd4hep::Detector&, int, char**) {

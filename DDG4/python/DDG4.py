@@ -127,18 +127,36 @@ def _registerGlobalAction(self, action):
   self.get().registerGlobalAction(Interface.toAction(action))
 
 
-def _registerGlobalFilter(self, filter):
+def _registerGlobalFilter(self, filter):  # noqa: A002
   self.get().registerGlobalFilter(Interface.toAction(filter))
+
+
+def _evalProperty(data):
+  """
+    Function necessary to extract real strings from the property value.
+    Strings may be embraced by quotes: '<value>'
+  """
+  try:
+    if isinstance(data, str):
+      import ast
+      return ast.literal_eval(data)
+  except ValueError:
+    pass
+  except TypeError:
+    pass
+  finally:
+    pass
+  return data
 
 
 def _getKernelProperty(self, name):
   ret = Interface.getPropertyKernel(self.get(), name)
   if ret.status > 0:
-    return ret.data
+    return _evalProperty(ret.data)
   elif hasattr(self.get(), name):
-    return getattr(self.get(), name)
+    return _evalProperty(getattr(self.get(), name))
   elif hasattr(self, name):
-    return getattr(self, name)
+    return _evalProperty(getattr(self, name))
   msg = 'Geant4Kernel::GetProperty [Unhandled]: Cannot access Kernel.' + name
   raise KeyError(msg)
 
@@ -342,33 +360,11 @@ _props('UserInitializationSequenceHandle')
 _props('Geant4PhysicsListActionSequence')
 
 
-class CommandLine:
-  """
-  Helper to ease parsing the command line.
-  Any argument given in the command line is accessible
-  from the object. If no value is supplied, the returned
-  value is True. If the argument is not present None is returned.
-
-  \author  M.Frank
-  \version 1.0
-  """
-  def __init__(self):
-    import sys
-    self.data = {}
-    for i in range(len(sys.argv)):
-      if sys.argv[i][0] == '-':
-        key = sys.argv[i][1:]
-        val = True
-        if i + 1 < len(sys.argv):
-          val = sys.argv[i + 1]
-        self.data[key] = val
-
-  def __getattr__(self, attr):
-    if self.data.get(attr):
-      return self.data.get(attr)
-    return None
-
-
+# ---------------------------------------------------------------------------
+#
+# Basic helper to configure the DDG4 instance from python
+#
+# ---------------------------------------------------------------------------
 class Geant4:
   """
   Helper object to perform stuff, which occurs very often.
@@ -439,6 +435,15 @@ class Geant4:
     """
     return self.setupUI(typ='csh', vis=vis, ui=ui, macro=macro)
 
+  def ui(self):
+    """
+    Access UI manager action from the kernel object
+
+    \author  M.Frank
+    """
+    ui_name = getattr(self.master(), 'UI')
+    return self.master().globalAction(ui_name)
+
   def addUserInitialization(self, worker, worker_args=None, master=None, master_args=None):
     """
     Configure Geant4 user initialization for optionasl multi-threading mode
@@ -469,7 +474,7 @@ class Geant4:
                               sensitives=None, sensitives_args=None,
                               allow_threads=False):
     """
-    Configure Geant4 user initialization for optionasl multi-threading mode
+    Configure Geant4 user initialization for optional multi-threading mode
 
     \author  M.Frank
     """
@@ -662,29 +667,31 @@ class Geant4:
       return (seq, acts)
     return (seq, acts[0])
 
-  def setupCalorimeter(self, name, type=None, collections=None):
+  def setupCalorimeter(self, name, type=None, collections=None):  # noqa: A002
     """
     Setup subdetector of type 'calorimeter' and assign the proper sensitive action
 
     \author  M.Frank
     """
+    typ = type    # noqa: A002
     self.description.sensitiveDetector(str(name))
     # sd.setType('calorimeter')
-    if type is None:
-      type = self.sensitive_types['calorimeter']
-    return self.setupDetector(name, type, collections)
+    if typ is None:
+      typ = self.sensitive_types['calorimeter']
+    return self.setupDetector(name, typ, collections)
 
-  def setupTracker(self, name, type=None, collections=None):
+  def setupTracker(self, name, type=None, collections=None):  # noqa: A002
     """
     Setup subdetector of type 'tracker' and assign the proper sensitive action
 
     \author  M.Frank
     """
+    typ = type
     self.description.sensitiveDetector(str(name))
     # sd.setType('tracker')
-    if type is None:
-      type = self.sensitive_types['tracker']
-    return self.setupDetector(name, type, collections)
+    if typ is None:
+      typ = self.sensitive_types['tracker']
+    return self.setupDetector(name, typ, collections)
 
   def _private_setupField(self, field, stepper, equation, prt):
     import g4units

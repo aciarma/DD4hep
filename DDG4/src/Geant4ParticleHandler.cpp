@@ -21,6 +21,7 @@
 #include <DDG4/Geant4TrackingAction.h>
 #include <DDG4/Geant4SteppingAction.h>
 #include <DDG4/Geant4ParticleHandler.h>
+#include <DDG4/Geant4ParticleInformation.h>
 #include <DDG4/Geant4UserParticleHandler.h>
 
 // Geant4 include files
@@ -115,6 +116,8 @@ bool Geant4ParticleHandler::adopt(Geant4Action* action)    {
 void Geant4ParticleHandler::clear()  {
   detail::releaseObjects(m_particleMap);
   m_particleMap.clear();
+  // m_suspendedPM should already be empty and cleared...
+  assert(m_suspendedPM.empty() && "There was something wrong with the particle record treatment, please open a bug report!");
   m_equivalentTracks.clear();
 }
 
@@ -210,6 +213,25 @@ void Geant4ParticleHandler::begin(const G4Track* track)   {
   const G4PrimaryParticle* prim = h.primary();
   Particle* prim_part = 0;
 
+  // if particles are not tracked to the end, we pick up where we stopped previously
+  if (m_haveSuspended) {
+    //primary particles are already in the particle map, we don't have to store them in another map
+    auto existingParticle = m_particleMap.find(h.id());
+    if(existingParticle != m_particleMap.end()) {
+      m_currTrack.get_data(*(existingParticle->second));
+      return;
+    }
+    //other particles might not be in the particleMap yet, so we take them from here
+    existingParticle = m_suspendedPM.find(h.id());
+    if(existingParticle != m_suspendedPM.end()) {
+      m_currTrack.get_data(*(existingParticle->second));
+      // make sure we delete a suspended particle in the map, fill it back later...
+      delete (*existingParticle).second;
+      m_suspendedPM.erase(existingParticle);
+      return;
+    }
+  }
+
   if ( prim )   {
     prim_part = m_primaryMap->get(prim);
     if ( !prim_part )  {
@@ -234,6 +256,7 @@ void Geant4ParticleHandler::begin(const G4Track* track)   {
     m_currTrack.daughters    = prim_part->daughters;
     m_currTrack.pdgID        = prim_part->pdgID;
     m_currTrack.mass         = prim_part->mass;
+    m_currTrack.charge       = int(3.0 * h.charge());
   }
   else  {
     m_currTrack.id           = m_globalParticleID;
@@ -248,8 +271,9 @@ void Geant4ParticleHandler::begin(const G4Track* track)   {
     m_currTrack.colorFlow[1] = 0;
     m_currTrack.parents.clear();
     m_currTrack.daughters.clear();
-    m_currTrack.pdgID        = h.trackDef()->GetPDGEncoding();
-    m_currTrack.mass         = h.trackDef()->GetPDGMass();
+    m_currTrack.pdgID        = h.pdgID();
+    m_currTrack.mass         = h.mass();
+    m_currTrack.charge       = int(3.0 * h.charge());
     ++m_globalParticleID;
   }
   m_currTrack.steps       = 0;
@@ -291,7 +315,8 @@ void Geant4ParticleHandler::begin(const G4Track* track)   {
 void Geant4ParticleHandler::end(const G4Track* track)   {
   Geant4TrackHandler h(track);
   Geant4ParticleHandle ph(&m_currTrack);
-  int g4_id = h.id();
+  const int g4_id = h.id();
+
   int track_reason = m_currTrack.reason;
   PropertyMask mask(m_currTrack.reason);
   // Update vertex end point and final momentum
@@ -327,15 +352,18 @@ void Geant4ParticleHandler::end(const G4Track* track)   {
   if ( m_userHandler )  {
     m_userHandler->end(track, m_currTrack);
   }
-
+ 
   // These are candidate tracks with a probability to be stored due to their properties:
   // - primary particle
   // - hits created
   // - secondaries
   // - above energy threshold
   // - to be kept due to creator process
+  // - to be kept due to user information of type 'Geant4ParticleInformation' stored in the G4Track
   //
-  if ( !mask.isNull() )   {
+  Geant4ParticleInformation* track_info =
+    dynamic_cast<Geant4ParticleInformation*>(track->GetUserInformation());
+  if ( !mask.isNull() || track_info )   {
     m_equivalentTracks[g4_id] = g4_id;
     ParticleMap::iterator ip = m_particleMap.find(g4_id);
     if ( mask.isSet(G4PARTICLE_PRIMARY) )   {
@@ -345,6 +373,10 @@ void Geant4ParticleHandler::end(const G4Track* track)   {
     Particle* part = 0;
     if ( ip==m_particleMap.end() ) part = m_particleMap[g4_id] = new Particle();
     else part = (*ip).second;
+    if ( track_info )  {
+      mask.set(G4PARTICLE_KEEP_USER);
+      part->extension.reset(track_info->release());
+    }
     part->get_data(m_currTrack);
   }
   else   {
@@ -367,6 +399,17 @@ void Geant4ParticleHandler::end(const G4Track* track)   {
     else
       ph.dumpWithVertex(outputLevel()+3,name(),"FATAL: No real particle parent present");
   }
+
+  if(track->GetTrackStatus() == fSuspend) {
+    m_haveSuspended = true;
+    //track is already in particle map, we pick it up from there in begin again
+    if(m_particleMap.find(g4_id) != m_particleMap.end()) return;
+    //track is not already stored, keep it in special map
+    auto iPart = m_suspendedPM.emplace(g4_id, new Particle());
+    (iPart.first->second)->get_data(m_currTrack);
+    return; // we trust that we eventually return to this function with another status and go on then
+  }
+
 }
 
 /// Pre-event action callback

@@ -21,7 +21,7 @@
 # 
 # M.Frank, CERN, 2015:  Adapt to new cmake scripts
 #==========================================================================
-cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 project( DD4hep_Examples )
 
@@ -42,7 +42,7 @@ dd4hep_configure_output()
 
 #==========================================================================
 
-SET(DD4HEP_EXAMPLES "AlignDet CLICSiD ClientTests Conditions DDCMS DDCodex DDDigi DDG4 DDG4_MySensDet LHeD OpticalSurfaces OpticalTracker Persistency DDCAD SimpleDetector"
+SET(DD4HEP_EXAMPLES "AlignDet CLICSiD ClientTests Conditions DDCMS DDCodex DDDigi DDG4 DDG4_MySensDet LHeD OpticalSurfaces RICH Persistency DDCAD SimpleDetector"
   CACHE STRING "List of DD4hep Examples to build")
 SEPARATE_ARGUMENTS(DD4HEP_EXAMPLES)
 

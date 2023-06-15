@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 PROJECT( DD4hep LANGUAGES NONE)
 SET_PROPERTY(DIRECTORY . PROPERTY PACKAGE_NAME DD4hep)
 
@@ -7,8 +7,8 @@ SET_PROPERTY(DIRECTORY . PROPERTY PACKAGE_NAME DD4hep)
 #################
 
 SET( DD4hep_VERSION_MAJOR 1 )
-SET( DD4hep_VERSION_MINOR 23 )
-SET( DD4hep_VERSION_PATCH 0 )
+SET( DD4hep_VERSION_MINOR 25 )
+SET( DD4hep_VERSION_PATCH 1 )
 
 #######################
 # Basic project setup #
@@ -151,12 +151,28 @@ endif()
 
 if(DD4HEP_USE_EDM4HEP)
   find_package(EDM4HEP REQUIRED)
+  find_package(podio 0.16.3 REQUIRED)
 #  DD4HEP_SETUP_EDM4HEP_TARGETS()
 endif()
 
-IF(DD4HEP_USE_HEPMC3)
+if(DD4HEP_USE_HEPMC3)
   find_package(HepMC3 REQUIRED)
-ENDIF()
+
+  # Optional dependencies for compressed input support
+  if(HEPMC3_VERSION VERSION_GREATER_EQUAL "3.02.05")
+    option(DD4HEP_HEPMC3_COMPRESSION_SUPPORT "Enable reading of compressed HepMC files" OFF)
+    if(DD4HEP_HEPMC3_COMPRESSION_SUPPORT)
+      find_package(ZLIB REQUIRED)
+      find_package(LibLZMA REQUIRED)
+      find_package(BZip2 REQUIRED)
+    endif()
+  else()
+    option(DD4HEP_HEPMC3_COMPRESSION_SUPPORT "Enable reading of compressed HepMC files" OFF)
+    if(DD4HEP_HEPMC3_COMPRESSION_SUPPORT)
+      message(FATAL_ERROR "HepMC3 >= 3.2.5 is required for -DDD4HEP_HEPMC3_COMPRESSION_SUPPORT=ON")
+    endif()
+  endif()
+endif()
 
 if(DD4HEP_USE_TBB)
   find_package(TBB REQUIRED CONFIG)

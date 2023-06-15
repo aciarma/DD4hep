@@ -9,7 +9,6 @@
 #
 # ==========================================================================
 from __future__ import absolute_import, unicode_literals
-import sys
 import DDG4
 #
 """
@@ -24,10 +23,27 @@ import DDG4
 
 def run():
   from MiniTelSetup import Setup
-  m = Setup()
-  if len(sys.argv) >= 2 and sys.argv[1] == "batch":
+  args = DDG4.CommandLine()
+
+  m = Setup(geometry=args.geometry)
+  cmds = []
+  if args.events:
+    cmds = ['/run/beamOn ', str(args.events)]
+
+  if args.batch:
     DDG4.setPrintLevel(DDG4.OutputLevel.WARNING)
+    cmds.append('/ddg4/UI/terminate')
     m.kernel.UI = ''
+
+  # Configure G4 geometry setup
+  seq, act = m.geant4.addDetectorConstruction("Geant4DetectorGeometryConstruction/ConstructGeo")
+  if args.debug:
+    act.DebugVolumes = True
+    act.DebugRegions = True
+    act.DebugLimits = True
+
+  seq, act = m.geant4.addDetectorConstruction("Geant4DetectorSensitivesConstruction/ConstructSD")
+  m.ui.Commands = cmds
   m.configure()
   m.defineOutput()
   m.setupGun()

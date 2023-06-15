@@ -15,10 +15,12 @@ def run():
   import DigiTest
   digi = DigiTest.Test(geometry=None)
   digi.load_geo()
-  input = digi.input_action('DigiParallelActionSequence/READER')
+  input_action = digi.input_action('DigiParallelActionSequence/READER')
   # ========================================================================
   digi.info('Created SIGNAL input')
-  signal = input.adopt_action('DigiROOTInput/SignalReader', mask=0x0, input=[digi.next_input()])
+  signal = input_action.adopt_action('DigiDDG4ROOT/SignalReader',
+                                     mask=0x0,
+                                     input=[digi.next_input()])
   digi.check_creation([signal])
   # ========================================================================
   event = digi.event_action('DigiSequentialActionSequence/EventAction')
@@ -27,21 +29,21 @@ def run():
                            input_mask=0x0, input_segment='inputs',
                            output_mask=0xFEED, output_segment='outputs')
   resegment = digi.create_action('DigiResegment/Resegment')
-  resegment.detector = 'EcalBarrel'
-  resegment.readout = 'NewEcalBarrelHits'
+  resegment.detector = 'Minitel1'
+  resegment.readout = 'NewMinitel1Hits'
   resegment.descriptor = """
-  <readout name="NewEcalBarrelHits">
-    <segmentation type="CartesianGridXY" grid_size_x="10" grid_size_y="10"/>
-    <id>system:8,barrel:3,module:4,layer:6,slice:5,x:32:-16,y:-16</id>
+  <readout name="NewMinitel1Hits">
+    <segmentation type="CartesianGridXY" grid_size_x="20*mm" grid_size_y="20*mm"/>
+    <id>system:6,side:2,module:8,x:28:-12,y:52:-12</id>
   </readout>
   """
   resegment.debug = False
-  seq.adopt_container_processor(resegment, 'EcalBarrelHits')
+  seq.adopt_container_processor(resegment, 'Minitel1Hits')
   event.adopt_action('DigiStoreDump/StoreDump')
 
   digi.info('Created event.dump')
   # ========================================================================
-  digi.run_checked(num_events=3, num_threads=5, parallel=3)
+  digi.run_checked(num_events=5, num_threads=15, parallel=3)
 
 
 if __name__ == '__main__':

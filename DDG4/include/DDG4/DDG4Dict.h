@@ -65,10 +65,6 @@ namespace { class DDG4Dict {};   }
 /// Dictionaires for Geant4 particles
 #pragma link C++ class dd4hep::sim::ParticleExtension+;
 
-/// Auto-pointers related. ROOT cannot handle I/O!
-#pragma link C++ class dd4hep::dd4hep_ptr<dd4hep::sim::DataExtension>;
-#pragma link C++ class dd4hep::dd4hep_ptr<dd4hep::sim::ParticleExtension>;
-
 #pragma link C++ class dd4hep::sim::Geant4Particle+;
 #pragma link C++ class std::vector<dd4hep::sim::Geant4Particle*>+;
 #pragma link C++ class std::map<int,dd4hep::sim::Geant4Particle*>+;
@@ -142,7 +138,7 @@ namespace dd4hep {
     /// Default constructor
     inline Geant4Tracker::Hit::Hit() : length(0), energyDeposit(0e0)  {    }
     /// Initializing constructor
-    inline Geant4Tracker::Hit::Hit(int, int, double, double)   {}
+    //inline Geant4Tracker::Hit::Hit(int, int, double, double)   {}
     /// Default destructor
     inline Geant4Tracker::Hit::~Hit()  {    }
     /// Explicit assignment operation

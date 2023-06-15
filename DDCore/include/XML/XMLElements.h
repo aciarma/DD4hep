@@ -97,6 +97,11 @@ namespace dd4hep {
     /// Dump DOM tree of a document
     void dumpTree(XmlDocument* doc);
 
+    /// Change floating point precision on conversion to string
+    int set_float_precision(int precision);
+    /// Access floating point precision on conversion to string
+    int get_float_precision();
+
     /// Convert xml attribute to STL string  \ingroup DD4HEP_XML
     std::string _toString(const Attribute attr);
     /// Convert xml string to STL string  \ingroup DD4HEP_XML
@@ -558,6 +563,11 @@ namespace dd4hep {
 
     template <> INLINE std::string Handle_t::attr<std::string>(const XmlChar* tag_value) const {
       return _toString(attr_value(tag_value));
+    }
+
+    template <> INLINE Attribute Handle_t::attr<Attribute>(const XmlChar* tag_value, Attribute default_value) const {
+      Attribute a = attr_nothrow(tag_value);
+      return a ? a : default_value;
     }
 
     template <> INLINE bool Handle_t::attr<bool>(const XmlChar* tag_value, bool default_value) const {

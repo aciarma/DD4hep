@@ -19,12 +19,17 @@
 /// C/C++ include files
 #include <cstdint>
 #include <memory>
+#include <limits>
 #include <mutex>
 #include <map>
 #include <any>
 
 /// Namespace for the AIDA detector description toolkit
 namespace dd4hep {
+
+  namespace detail  {
+    static constexpr double numeric_epsilon = 10.0 * std::numeric_limits<double>::epsilon();
+  }
 
   /// Namespace for the Digitization part of the AIDA detector description toolkit
   namespace digi {
@@ -61,11 +66,11 @@ namespace dd4hep {
       key_type key;
       /// Second union entry to use for discrimination
       struct {
-	// Ordering is important here: 
-	// We want to group the containers by item ie. by container name
-	// and not by mask
-	segment_type segment;
-	submask_type submask;
+        // Ordering is important here: 
+        // We want to group the containers by item ie. by container name
+        // and not by mask
+        segment_type segment;
+        submask_type submask;
         mask_type    mask;
         itemkey_type item;
       } values;
@@ -77,11 +82,13 @@ namespace dd4hep {
       /// Copy constructor
       Key(const Key&);
       /// Initializaing constructor (fast)
-      Key(key_type full_mask) = delete;
+      Key(key_type full_mask);
       /// Initializing constructor with key generation using hash algorithm
       explicit Key(const char* item, mask_type mask);
       /// Initializing constructor with key generation using hash algorithm
       explicit Key(const std::string& item, mask_type mask);
+      /// Initializing constructor with key generation using hash algorithm
+      explicit Key(const std::string& item, segment_type segment, mask_type mask);
       /// Assignment operator
       Key& operator = (const Key::key_type) = delete;
       /// Assignment operator
@@ -96,54 +103,44 @@ namespace dd4hep {
       bool operator > (const Key&)   const;
 
       /// Generate key using hash algorithm
-      void set(const std::string& name, int mask);
+      Key& set(const std::string& name, int mask);
+      /// Generate key using hash algorithm
+      Key& set(const std::string& name, int segment, int mask);
 
       /// Set key mask
-      Key& set_mask(mask_type m)  {
-	this->values.mask = m;
-	return *this;
-      }
+      Key& set_mask(mask_type m);
+      /// Set key item identifier
+      Key& set_item(itemkey_type i);
+      /// Set key mask
+      Key& set_segment(segment_type seg);
       /// Set key submask
-      Key& set_submask(submask_type m)  {
-	this->values.submask = m;
-	return *this;
-      }
+      Key& set_submask(submask_type m);
       /// Set key submask
       Key& set_submask(const char* opt_tag);
-      /// Set key item identifier
-      Key& set_item(itemkey_type i)  {
-	this->values.item = i;
-	return *this;
-      }
-      /// Set key mask
-      Key& set_segment(segment_type seg)  {
-	this->values.segment = seg;
-	return *this;
-      }
+
       /// Project the item part of the key
-      mask_type mask()  const {
-	return this->values.mask;
-      }
+      mask_type mask()  const;
       /// Project the mask part of the key
-      itemkey_type item()  const  {
-	return this->values.item;
-      }
+      itemkey_type item()  const;
       /// Project the segment part of the key
-      segment_type segment()  const  {
-        return this->values.segment;
-      }
-      /// Access key as long integer
-      key_type value()  const {
-	return this->key;
-      }
-      /// Project the mask part of the key
-      static itemkey_type item(Key k)  {
-	return k.values.item;
-      }
+      segment_type segment()  const;
       /// Project the item part of the key
-      static mask_type mask(Key k)  {
-	return k.values.mask;
+      submask_type submask()  const;
+      /// Access key as long integer
+      key_type value()  const;
+
+      operator key_type()  const  {
+        return this->key;
       }
+      
+      /// Project the mask part of the key
+      static itemkey_type item(Key k);
+      /// Project the item part of the key
+      static mask_type mask(Key k);
+      /// Project the item part of the key
+      static segment_type segment(Key k);
+      /// Project the item part of the key
+      static submask_type submask(Key k);
       /// Access key name (if registered properly)
       static std::string key_name(const Key& key);
     };
@@ -162,6 +159,12 @@ namespace dd4hep {
     inline Key::Key(const Key& copy)   {
       this->key = copy.key;
     }
+
+    /// Initializaing constructor (fast)
+    inline Key::Key(key_type full_mask)   {
+      this->key = full_mask;
+    }
+      
     /// Initializaing constructor with key generation using hash algorithm
     inline Key::Key(const char* item, mask_type mask)  {
       this->set(item, mask);
@@ -170,6 +173,11 @@ namespace dd4hep {
     /// Initializaing constructor with key generation using hash algorithm
     inline Key::Key(const std::string& item, mask_type mask)  {
       this->set(item, mask);
+    }
+
+    /// Initializing constructor with key generation using hash algorithm
+    inline Key::Key(const std::string& item, segment_type segmnt, mask_type msk)   {
+      this->set(item, segmnt, msk);
     }
 
     /// Move assignment operator
@@ -199,13 +207,91 @@ namespace dd4hep {
       return this->key > other.key;
     }
 
+    /// Set key mask
+    inline Key& Key::set_mask(mask_type m)  {
+      this->values.mask = m;
+      return *this;
+    }
+    
+    /// Set key submask
+    inline Key& Key::set_submask(submask_type m)  {
+      this->values.submask = m;
+      return *this;
+    }
+
+    /// Set key item identifier
+    inline Key& Key::set_item(itemkey_type i)  {
+      this->values.item = i;
+      return *this;
+    }
+
+    /// Set key mask
+    inline Key& Key::set_segment(segment_type seg)  {
+      this->values.segment = seg;
+      return *this;
+    }
+
+    /// Access key as long integer
+    inline Key::key_type Key::value()  const {
+      return this->key;
+    }
+    /// Project the item part of the key
+    inline Key::mask_type Key::mask()  const {
+      return this->values.mask;
+    }
+    /// Project the mask part of the key
+    inline Key::itemkey_type Key::item()  const  {
+      return this->values.item;
+    }
+    /// Project the segment part of the key
+    inline Key::segment_type Key::segment()  const  {
+      return this->values.segment;
+    }
+    /// Project the item part of the key
+    inline Key::submask_type Key::submask()  const {
+      return this->values.submask;
+    }
+
+    /// Project the mask part of the key
+    inline Key::itemkey_type Key::item(Key k)  {
+      return k.values.item;
+    }
+    /// Project the item part of the key
+    inline Key::mask_type Key::mask(Key k)  {
+      return k.values.mask;
+    }
+    /// Project the item part of the key
+    inline Key::segment_type Key::segment(Key k)  {
+      return k.values.segment;
+    }
+    /// Project the item part of the key
+    inline Key::submask_type Key::submask(Key k)  {
+      return k.values.submask;
+    }
+    
+    /// Base class for objects in a DataSegment 
+    /**
+     *
+     *  \author  M.Frank
+     *  \version 1.0
+     *  \ingroup DD4HEP_DIGITIZATION
+     */
     class SegmentEntry   {
     public:
+      enum data_type_t  {
+        UNKNOWN            = 0,
+        PARTICLES          = 1 << 1,
+        TRACKER_HITS       = 1 << 2,
+        CALORIMETER_HITS   = 1 << 3,
+        HISTORY            = 1 << 4,
+        DETECTOR_RESPONSE  = 1 << 5,
+      };
       std::string      name { };
       Key              key  { };
+      data_type_t      data_type  { UNKNOWN };
     public:
       /// Initializing constructor
-      SegmentEntry(const std::string& name, Key::mask_type mask);
+      SegmentEntry(const std::string& name, Key::mask_type mask, data_type_t typ);
       /// Default constructor
       SegmentEntry() = default;
       /// Disable move constructor
@@ -221,8 +307,8 @@ namespace dd4hep {
     };
 
     /// Initializing constructor
-    inline SegmentEntry::SegmentEntry(const std::string& nam, Key::mask_type msk)
-      : name(nam)
+    inline SegmentEntry::SegmentEntry(const std::string& nam, Key::mask_type msk, data_type_t typ)
+      : name(nam), data_type(typ)
     {
       key.set(nam, msk);
     }
@@ -240,13 +326,13 @@ namespace dd4hep {
       Position  end_position   { };
       Direction momentum       { };
       double    mass           { 0e0 };
+      int       time           { 0 };
+      int       pdgID          { 0 };
       char      charge         { 0 };
       /// Source contributing
-      Key       history;
+      std::any  source         { };  //! not persistent
 
     public:
-      /// Initializing constructor
-      Particle(Key history);
       /// Default constructor
       Particle() = default;
       /// Disable move constructor
@@ -259,13 +345,9 @@ namespace dd4hep {
       Particle& operator=(Particle&& copy) = default;
       /// Disable copy assignment
       Particle& operator=(const Particle& copy) = default;
+      /// Move particle
+      void move_position(const Position& delta);
     };
-
-    /// Initializing constructor
-    inline Particle::Particle(Key h)
-      : history(h)
-    {
-    }
 
     /// Particle mapping definition for digitization
     /**
@@ -275,13 +357,14 @@ namespace dd4hep {
      *  \ingroup DD4HEP_DIGITIZATION
      */
     class ParticleMapping : public SegmentEntry   {
-      using container_t    = std::map<Key, Particle>;
+    public:
+      using container_t    = std::map<Key::key_type, Particle>;
       using value_type     = container_t::value_type;
       using mapped_type    = container_t::mapped_type;
       using key_type       = container_t::key_type;
       using iterator       = container_t::iterator;
       using const_iterator = container_t::const_iterator;
-
+    protected:
       container_t data;
 
     public: 
@@ -327,11 +410,13 @@ namespace dd4hep {
       const_iterator begin() const        { return this->data.begin();       }
       /// End iteration (CONST)
       const_iterator end()   const        { return this->data.end();         }
+      /// Access particle by key
+      const Particle& get(Key key)   const;
     };
 
     /// Initializing constructor
     inline ParticleMapping::ParticleMapping(const std::string& nam, Key::mask_type msk)
-      : SegmentEntry(nam, msk)
+      : SegmentEntry(nam, msk, SegmentEntry::PARTICLES)
     {
     }
 
@@ -345,15 +430,17 @@ namespace dd4hep {
     class History   {
     public:
       struct hist_entry_t   {
-	Key    source { };
-	double weight { 0e0 };
-	hist_entry_t(Key s, double w);
-	hist_entry_t() = default;
-	hist_entry_t(hist_entry_t&& copy) = default;
-	hist_entry_t(const hist_entry_t& copy) = default;
-	hist_entry_t& operator=(hist_entry_t&& copy) = default;
-	hist_entry_t& operator=(const hist_entry_t& copy) = default;
-	~hist_entry_t() = default;
+        Key::key_type source { };
+        double weight { 0e0 };
+        hist_entry_t(Key s, double w);
+        hist_entry_t() = default;
+        hist_entry_t(hist_entry_t&& copy) = default;
+        hist_entry_t(const hist_entry_t& copy) = default;
+        hist_entry_t& operator=(hist_entry_t&& copy) = default;
+        hist_entry_t& operator=(const hist_entry_t& copy) = default;
+        ~hist_entry_t() = default;
+        const Particle& get_particle(const DigiEvent& event)  const;
+        const EnergyDeposit& get_deposit(const DigiEvent& event, Key::itemkey_type container_item)  const;
       };
       /// Sources contributing to the deposit indexed by the cell identifier
       std::vector<hist_entry_t> hits;
@@ -377,6 +464,17 @@ namespace dd4hep {
       void update(const History& upda);
       /// Drop history information
       std::pair<std::size_t,std::size_t> drop();
+
+      /// Number of hits contributing to history entry
+      std::size_t num_hits()   const   {
+        return hits.size();
+      }
+      /// Number of particles contributing to history entry
+      std::size_t num_particles()   const   {
+        return particles.size();
+      }
+      /// Retrieve the weighted momentum of all contributing particles
+      Direction average_particle_momentum(const DigiEvent& event)  const;
     };
 
     inline History::hist_entry_t::hist_entry_t(Key s, double w)
@@ -392,21 +490,34 @@ namespace dd4hep {
      */
     class EnergyDeposit   {
     public:
-      /// Hit position
-      Position       position    { };
-      /// Hit direction
-      Direction      momentum    { };
-      /// Length of the track segment contributing to this hit
-      double         length      { 0 };
-      /// Total energy deposit
-      double         deposit     { 0 };
-      /// Optional flag for user masks
-      long           flag        { 0 };
-      /// Source mask of this deposit
-      Key::mask_type mask        { 0 };
+      enum { 
+        KILLED             = 1 << 0,
+        ENERGY_SMEARED     = 1 << 1,
+        POSITION_SMEARED   = 1 << 2,
+        TIME_SMEARED       = 1 << 3,
+        ZERO_SUPPRESSED    = 1 << 4,
+        DEPOSIT_NOISE      = 1 << 5,
+        RECALIBRATED       = 1 << 6,
+      };
 
-      /// Sources contributing to this deposit
-      History        history;
+      /// Hit position
+      Position       position     { };
+      /// Hit direction
+      Direction      momentum     { };
+      /// Length of the track segment contributing to this hit
+      double         length       { 0e0 };
+      /// Total energy deposit
+      double         deposit      { 0e0 };
+      /// Total energy deposit
+      double         depositError { -1e0 };
+      /// Proper creation time of the deposit with rescpect to beam crossing
+      double         time         { 0e0 };
+      /// Optional flag for user masks
+      uint64_t       flag         { 0UL };
+      /// Source mask of this deposit
+      Key::mask_type mask         { 0 };
+      /// Deposit history
+      History        history      { };
 
     public:
       /// Default constructor
@@ -428,6 +539,37 @@ namespace dd4hep {
     };
 
 
+    /// Base class to select energy deposits
+    /**
+     *
+     *  \author  M.Frank
+     *  \version 1.0
+     *  \ingroup DD4HEP_DIGITIZATION
+     */
+    template <typename USERDATA=int> class DepositPredicate   {
+    public:
+      using userdata_t = USERDATA;
+      /// User data block
+      userdata_t data;
+      /// Standard constructor
+      DepositPredicate(const userdata_t& data=userdata_t());
+      /// Default destructor
+      virtual ~DepositPredicate() = default;
+      /// Selector function
+      template <typename ARG> bool operator()(ARG argument)  const;
+    };
+
+    /// Standard constructor
+    template <typename USERDATA> inline 
+    DepositPredicate<USERDATA>::DepositPredicate(const userdata_t& d)
+      : data(d)
+    {
+    }
+
+    struct EnergyCut {
+      double cutoff;
+    };
+    
     /// Energy deposit vector definition for digitization
     /**
      *
@@ -437,15 +579,19 @@ namespace dd4hep {
      */
     class DepositVector : public SegmentEntry  {
     public: 
-      using container_t    = std::vector<std::pair<CellID, EnergyDeposit> >;
+      using container_t    = std::vector<std::pair<const CellID, EnergyDeposit> >;
+      using value_type     = container_t::value_type;
+      using mapped_type    = container_t::value_type::second_type;
+      using key_type       = container_t::value_type::first_type;
       using iterator       = container_t::iterator;
       using const_iterator = container_t::const_iterator;
 
-      container_t    data { };
+    protected:
+      container_t    data      { };
 
     public: 
       /// Initializing constructor
-      DepositVector(const std::string& name, Key::mask_type mask);
+      DepositVector(const std::string& name, Key::mask_type mask, data_type_t typ);
       /// Default constructor
       DepositVector() = default;
       /// Disable move constructor
@@ -477,6 +623,10 @@ namespace dd4hep {
       std::size_t size()  const           { return this->data.size();        }
       /// Check container if empty
       bool        empty() const           { return this->data.empty();       }
+      /// Access energy deposit by key
+      const EnergyDeposit& get(CellID cell)   const;
+      /// Access energy deposit by key
+      const EnergyDeposit& at(std::size_t cell)   const;
 
       /** Iteration support */
       /// Begin iteration
@@ -487,11 +637,13 @@ namespace dd4hep {
       const_iterator begin() const        { return this->data.begin();       }
       /// End iteration (CONST)
       const_iterator end()   const        { return this->data.end();         }
+      /// Remove entry
+      void remove(iterator position);
     };
 
     /// Initializing constructor
-    inline DepositVector::DepositVector(const std::string& nam, Key::mask_type msk)
-      : SegmentEntry(nam, msk)
+    inline DepositVector::DepositVector(const std::string& nam, Key::mask_type msk, data_type_t typ)
+      : SegmentEntry(nam, msk, typ)
     {
     }
 
@@ -510,14 +662,17 @@ namespace dd4hep {
     class DepositMapping : public SegmentEntry  {
     public: 
       using container_t    = std::multimap<CellID, EnergyDeposit>;
+      using value_type     = container_t::value_type;
+      using mapped_type    = container_t::mapped_type;
+      using key_type       = container_t::key_type;
       using iterator       = container_t::iterator;
       using const_iterator = container_t::const_iterator;
 
-      container_t    data { };
+      container_t    data      { };
 
     public: 
       /// Initializing constructor
-      DepositMapping(const std::string& name, Key::mask_type mask);
+      DepositMapping(const std::string& name, Key::mask_type mask, data_type_t typ);
       /// Default constructor
       DepositMapping() = default;
       /// Disable move constructor
@@ -540,11 +695,15 @@ namespace dd4hep {
       std::size_t merge(DepositVector&& updates);
       /// Merge new deposit map onto existing map (not thread safe!)
       std::size_t insert(const DepositVector& updates);
+      /// Emplace entry
+      void emplace(CellID cell, EnergyDeposit&& deposit);
 
       /// Access container size
       std::size_t size()  const           { return this->data.size();        }
       /// Check container if empty
       bool        empty() const           { return this->data.empty();       }
+      /// Access energy deposit by key
+      const EnergyDeposit& get(CellID cell)   const;
 
       /** Iteration support */
       /// Begin iteration
@@ -555,11 +714,13 @@ namespace dd4hep {
       const_iterator begin() const        { return this->data.begin();       }
       /// End iteration (CONST)
       const_iterator end()   const        { return this->data.end();         }
+      /// Remove entry
+      void remove(iterator position);
     };
 
     /// Initializing constructor
-    inline DepositMapping::DepositMapping(const std::string& nam, Key::mask_type msk)
-      : SegmentEntry(nam, msk)
+    inline DepositMapping::DepositMapping(const std::string& nam, Key::mask_type msk, data_type_t typ)
+      : SegmentEntry(nam, msk, typ)
     {
     }
 
@@ -628,7 +789,7 @@ namespace dd4hep {
 
     /// Initializing constructor
     inline DetectorResponse::DetectorResponse(const std::string& nam, Key::mask_type msk)
-      : SegmentEntry(nam, msk)
+      : SegmentEntry(nam, msk, SegmentEntry::DETECTOR_RESPONSE)
     {
     }
 
@@ -697,7 +858,7 @@ namespace dd4hep {
 
     /// Initializing constructor
     inline DetectorHistory::DetectorHistory(const std::string& nam, Key::mask_type msk)
-      : SegmentEntry(nam, msk)
+      : SegmentEntry(nam, msk, SegmentEntry::HISTORY)
     {
     }
 
@@ -709,6 +870,85 @@ namespace dd4hep {
     /// Insert new entry
     inline void DetectorHistory::insert(CellID cell, const History& value)   {
       this->data.emplace_back(cell, value);
+    }
+    typedef DetectorHistory DepositsHistory;
+
+    /// Detector history vector definition for digitization
+    /**
+     *
+     *  \author  M.Frank
+     *  \version 1.0
+     *  \ingroup DD4HEP_DIGITIZATION
+     */
+    class DataParameters : public SegmentEntry  {
+    public: 
+      template <typename T> using map_type_t = std::map<std::string, std::vector<T> >;
+      struct header_data  {
+	map_type_t<std::string> stringParams;
+	map_type_t<float>       floatParams;
+	map_type_t<int>         intParams;
+	std::int32_t            run_number    {  -1 };
+	std::int32_t            event_number  {  -1 };
+	std::int64_t            time_stamp    {   0 };
+	double                  event_weight  { 0e0 };
+      };
+      std::shared_ptr<header_data> data;
+    public: 
+      /// Initializing constructor
+      DataParameters(const std::string& name, Key::mask_type mask);
+      /// Default constructor
+      DataParameters() = default;
+      /// Disable move constructor
+      DataParameters(DataParameters&& copy) = default;
+      /// Disable copy constructor
+      DataParameters(const DataParameters& copy) = default;
+      /// Default destructor
+      virtual ~DataParameters() = default;
+      /// Disable move assignment
+      DataParameters& operator=(DataParameters&& copy) = default;
+      /// Disable copy assignment
+      DataParameters& operator=(const DataParameters& copy) = default;
+      /// Access  data size
+      std::size_t size()  const;
+      /// Access the event number
+      std::int32_t getEventNumber() const   {
+	return data->event_number;
+      }
+      /// Access the run number
+      std::int32_t getRunNumber() const   {
+	return data->run_number;
+      }
+      /// Access the time stamp
+      std::uint64_t getTimeStamp() const   {
+	return data->time_stamp;
+      }
+      /// Access the event weight
+      float getWeight() const   {
+	return data->event_weight;
+      }
+      /// Set the event number
+      void setEventNumber(std::int32_t value)   {
+	data->event_number = value;
+      }
+      /// Set the run number
+      void setRunNumber(std::int32_t value)   {
+	data->run_number = value;
+      }
+      /// Set the time stamp
+      void setTimeStamp(std::uint64_t value)   {
+	data->time_stamp = value;
+      }
+      /// Set the event weight
+      void setWeight(float value)   {
+	data->event_weight = value;
+      }
+    };
+
+    /// Initializing constructor
+    inline DataParameters::DataParameters(const std::string& nam, Key::mask_type msk)
+      : SegmentEntry(nam, msk, SegmentEntry::HISTORY)
+    {
+      this->data = std::make_shared<header_data>();
     }
 
 
@@ -738,12 +978,12 @@ namespace dd4hep {
       const std::any* get_item(Key key, bool exc)  const;
 
     public:
-      container_map_t data;
-      std::mutex&     lock;
-      uint32_t        id  { 0 };
+      container_map_t   data;
+      std::mutex&       lock;
+      Key::segment_type id  { 0 };
     public:
       /// Initializing constructor
-      DataSegment(std::mutex& lock, int id);
+      DataSegment(std::mutex& lock, Key::segment_type id);
       /// Default constructor
       DataSegment() = delete;
       /// Disable move constructor
@@ -759,7 +999,13 @@ namespace dd4hep {
 
       /** Locked operations */
       /// Emplace data item (locked)
-      bool emplace(Key key, std::any&& data);
+      bool emplace_any(Key key, std::any&& data);
+      /// Emplace arbitrary data item
+      template <typename T> bool emplace(Key key, T&& data_item)   {
+        key.set_segment(this->id);
+        data_item.key.set_segment(this->id);
+        return this->emplace_any(key, std::move(data_item));
+      }
       /// Move data items other than std::any to the data segment
       template <typename DATA> bool put(Key key, DATA&& data);
       /// Remove data item from segment (locked)
@@ -804,29 +1050,44 @@ namespace dd4hep {
     };
 
     /// Access data as reference by key. If not existing, an exception is thrown
-    template<typename T> inline T& DataSegment::get(Key key)     {
-      if ( T* ptr = std::any_cast<T>(this->get_item(key, true)) )
-	return *ptr;
-      throw std::runtime_error(this->invalid_cast(key, typeid(T)));
+    template<typename DATA> inline DATA& DataSegment::get(Key key)     {
+      if ( DATA* ptr = std::any_cast<DATA>(this->get_item(key, true)) )
+        return *ptr;
+      throw std::runtime_error(this->invalid_cast(key, typeid(DATA)));
     }
     /// Access data as reference by key. If not existing, an exception is thrown
-    template<typename T> inline const T& DataSegment::get(Key key)  const   {
-      if ( const T* ptr = std::any_cast<T>(this->get_item(key, true)) )
-	return *ptr;
-      throw std::runtime_error(this->invalid_cast(key, typeid(T)));
+    template<typename DATA> inline const DATA& DataSegment::get(Key key)  const   {
+      if ( const DATA* ptr = std::any_cast<DATA>(this->get_item(key, true)) )
+        return *ptr;
+      throw std::runtime_error(this->invalid_cast(key, typeid(DATA)));
     }
 
     /// Access data as pointers by key. If not existing, nullptr is returned
-    template<typename T> inline T* DataSegment::pointer(Key key)     {
-      if ( T* ptr = std::any_cast<T>(this->get_item(key, false)) )
-	return ptr;
+    template<typename DATA> inline DATA* DataSegment::pointer(Key key)     {
+      if ( DATA* ptr = std::any_cast<DATA>(this->get_item(key, false)) )
+        return ptr;
       return nullptr;
     }
     /// Access data as pointers by key. If not existing, nullptr is returned
-    template<typename T> inline const T* DataSegment::pointer(Key key)  const   {
-      if ( const T* ptr = std::any_cast<T>(this->get_item(key, false)) )
-	return ptr;
+    template<typename DATA> inline const DATA* DataSegment::pointer(Key key)  const   {
+      if ( const DATA* ptr = std::any_cast<DATA>(this->get_item(key, false)) )
+        return ptr;
       return nullptr;
+    }
+
+    /// Move data items other than std::any to the data segment
+    template <typename DATA> inline bool DataSegment::put(Key key, DATA&& value)   {
+      key.set_segment(this->id);
+      value.key.set_segment(this->id);
+      std::any item = std::make_any<DATA>(std::move(value));
+      return this->emplace_any(key, std::move(item));
+    }
+
+    /// Helper to place data to data segment
+    template <typename KEY, typename DATA> 
+    bool put_data(DataSegment& segment, KEY key, DATA&& value)    {
+      std::any item = std::make_any<DATA>(std::move(value));
+      return segment.emplace_any(key, std::move(item));
     }
 
     ///  User event data for DDDigi
@@ -855,7 +1116,7 @@ namespace dd4hep {
       segment_t m_deposits;
 
       /// Helper: Save access with segment creation if it does not exist
-      DataSegment& access_segment(segment_t& seg, uint32_t id);
+      DataSegment& access_segment(segment_t& seg, Key::segment_type id);
 
     public:
       /// Current event number
@@ -876,10 +1137,22 @@ namespace dd4hep {
       virtual ~DigiEvent();
       /// String identifier of this event
       const char* id()   const    {   return this->m_id.c_str();   }
-      /// Retrieve data segment from the event structure
+      /// Retrieve data segment from the event structure by name
       DataSegment& get_segment(const std::string& name);
+      /// Retrieve data segment from the event structure by name (CONST)
+      const DataSegment& get_segment(const std::string& name)  const;
+      /// Retrieve data segment from the event structure by identifier
+      DataSegment& get_segment(Key::segment_type id);
+      /// Retrieve data segment from the event structure by identifier (CONST)
+      const DataSegment& get_segment(Key::segment_type id)  const;
     };
+
+    /// Static global functions
+    std::string digiTypeName(const std::type_info& info);
+    std::string digiTypeName(const std::any& data);
+    const Particle& get_history_particle(const DigiEvent& event, Key history_key);
+    const EnergyDeposit& get_history_deposit(const DigiEvent& event, Key::itemkey_type container_item, Key history_key);
+
   }    // End namespace digi
 }      // End namespace dd4hep
-
 #endif // DDDIGI_DIGIDATA_H

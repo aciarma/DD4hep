@@ -15,11 +15,11 @@ def run():
   import DigiTest
   digi = DigiTest.Test(geometry=None)
 
-  input = digi.input_action('DigiParallelActionSequence/READER')
+  input_action = digi.input_action('DigiParallelActionSequence/READER')
   # ========================================================================================================
   digi.info('Created SIGNAL input')
-  signal = input.adopt_action('DigiSequentialActionSequence/Signal')
-  signal.adopt_action('DigiROOTInput/SignalReader', mask=0x0, input=[digi.next_input()])
+  signal = input_action.adopt_action('DigiSequentialActionSequence/Signal')
+  signal.adopt_action('DigiDDG4ROOT/SignalReader', mask=0x0, input=[digi.next_input()])
   set_ip = signal.adopt_action('DigiIPCreate/SignalIP')
   set_ip.offset_ip = [1, 2, 3]
   set_ip.sigma_ip = [.5, .5, 3.0]
@@ -31,7 +31,7 @@ def run():
   conts.append('MCParticles')
   move_seq.adopt_container_processor(mover, conts)
   # ========================================================================================================
-  digi.run_checked(num_events=7, num_threads=7, parallel=3)
+  digi.run_checked(num_events=5, num_threads=7, parallel=3)
 
 
 if __name__ == '__main__':

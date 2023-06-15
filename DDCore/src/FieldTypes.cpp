@@ -24,13 +24,13 @@ using namespace dd4hep;
 
 // fallthrough only exists from c++17
 #if defined __has_cpp_attribute
-    #if __has_cpp_attribute(fallthrough)
-        #define ATTR_FALLTHROUGH [[fallthrough]]
-    #else
-        #define ATTR_FALLTHROUGH
-    #endif
+#if __has_cpp_attribute(fallthrough)
+#define ATTR_FALLTHROUGH [[fallthrough]]
 #else
-    #define ATTR_FALLTHROUGH
+#define ATTR_FALLTHROUGH
+#endif
+#else
+#define ATTR_FALLTHROUGH
 #endif
 
 DD4HEP_INSTANTIATE_HANDLE(ConstantField);
@@ -49,7 +49,7 @@ void ConstantField::fieldComponents(const double* /* pos */, double* field) {
 SolenoidField::SolenoidField()
   : innerField(0), outerField(0), minZ(-INFINITY), maxZ(INFINITY), innerRadius(0), outerRadius(INFINITY)
 {
-  type = CartesianField::MAGNETIC;
+  field_type = CartesianField::MAGNETIC;
 }
 
 /// Compute  the field components at a given location and add to given field
@@ -67,7 +67,7 @@ void SolenoidField::fieldComponents(const double* pos, double* field) {
 
 /// Initializing constructor
 DipoleField::DipoleField() : zmax(INFINITY), zmin(-INFINITY), rmax(INFINITY) {
-  type = CartesianField::MAGNETIC;
+  field_type = CartesianField::MAGNETIC;
 }
 
 /// Compute  the field components at a given location and add to given field
@@ -91,17 +91,48 @@ void DipoleField::fieldComponents(const double* pos, double* field) {
   }
 }
 
+namespace   {
+  constexpr static unsigned char FIELD_INITIALIZED   = 1<<0;
+  constexpr static unsigned char FIELD_IDENTITY      = 1<<1;
+  constexpr static unsigned char FIELD_ROTATION_ONLY = 1<<2;
+  constexpr static unsigned char FIELD_POSITION_ONLY = 1<<3;
+}
+
 /// Initializing constructor
-MultipoleField::MultipoleField() : coefficents(), skews(), volume(), transform(), B_z(0.0)  {
-  type = CartesianField::MAGNETIC;
+MultipoleField::MultipoleField()   {
+  field_type = CartesianField::MAGNETIC;
 }
 
 /// Compute  the field components at a given location and add to given field
 void MultipoleField::fieldComponents(const double* pos, double* field) {
-  Transform3D::Point p = transform * Transform3D::Point(pos[0],pos[1],pos[2]);
-  //const Transform3D::Point::CoordinateType& c = p.Coordinates();
-  double x=p.X(), y=p.Y(), z=p.Z();
-  double coord[3] = {x,y,z};
+  if ( 0 == flag )   {
+    constexpr static double eps = 1e-10;
+    double xx, xy, xz, dx, yx, yy, yz, dy, zx, zy, zz, dz;
+    transform.GetComponents(xx, xy, xz, dx, yx, yy, yz, dy, zx, zy, zz, dz);
+    flag |= FIELD_INITIALIZED;
+    if ( (xx + yy + zz) < (3e0 - eps) )   {
+      flag |= FIELD_ROTATION_ONLY;
+    }
+    else  {
+      flag |= FIELD_POSITION_ONLY;
+      if ( (std::abs(dx) + std::abs(dy) + std::abs(dz)) < eps )
+	flag |= FIELD_IDENTITY;
+    }
+    this->inverse  = this->transform.Inverse();
+    this->transform.GetRotation(this->rotation);
+    this->transform.GetTranslation(this->translation);
+  }
+  Transform3D::Point p, p0(pos[0],pos[1],pos[2]);
+  if      ( flag&FIELD_IDENTITY      ) p = p0;
+  else if ( flag&FIELD_POSITION_ONLY ) p = p0 - this->translation;
+  else      p = this->inverse * p0;
+
+  double x = p.X(), y = p.Y(), z = p.Z();
+  double coord[3] = {x, y, z};
+  // Debug printout:
+  //::printf("Pos: %+15.8e  %+15.8e  %+15.8e  Inverse: %+15.8e  %+15.8e  %+15.8e\n",
+  //         pos[0]/dd4hep::cm,pos[1]/dd4hep::cm,pos[2]/dd4hep::cm, p.X()/dd4hep::cm, p.Y()/dd4hep::cm, p.Z()/dd4hep::cm);
+
   if ( 0 == volume.ptr() || volume->Contains(coord) )  {
     double bx = 0.0;
     double by = 0.0;
@@ -130,8 +161,9 @@ void MultipoleField::fieldComponents(const double* pos, double* field) {
     default:     // Error condition
       throw runtime_error("Invalid multipole field definition!");
     }
-    field[0] += bx;
-    field[1] += by;
-    field[2] += B_z;
+    Transform3D::Point f = this->rotation * Transform3D::Point(bx, by, B_z);
+    field[0] += f.X();
+    field[1] += f.Y();
+    field[2] += f.Z();
   }
 }
